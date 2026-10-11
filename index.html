@@ -186,6 +186,7 @@ input[type="date"], select { font-size: 16px; }
 .zoom { margin-left: auto; display: flex; align-items: center; gap: 8px; background: rgb(0 0 0 / .55); padding: 4px 10px; border-radius: 99px; font-size: 13px; }
 .zoom input { width: 120px; padding: 0; border: 0; background: none; accent-color: #ff8a1f; }
 .iconbtn[aria-pressed="false"] { opacity: .55; }
+.diag { position: absolute; left: 14px; bottom: 140px; margin: 0; font: 12px/1.35 ui-monospace, Menlo, monospace; background: rgb(0 0 0 / .6); color: #fff; padding: 8px 10px; border-radius: 10px; z-index: 2; }
 .cam .controls { background: #0d0f12; padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 12px); display: flex; flex-direction: column; gap: 10px; }
 .lastset { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
 .lastset .chips { grid-column: 1 / -1; align-items: center; }
@@ -240,6 +241,8 @@ input[type="date"], select { font-size: 16px; }
         <div class="setting"><span>Cerrar serie tras<small>Segundos sin repeticiones</small></span><select id="set-autoend"><option>5</option><option>8</option><option>10</option><option>15</option><option>20</option></select></div>
         <div class="setting"><span>Mínimo de reps<small>Movimientos sueltos con menos reps no se guardan solos</small></span><select id="set-minreps"><option>1</option><option>2</option><option>3</option></select></div>
         <div class="setting"><span>Cámara<small>La trasera ve más campo y detecta mejor</small></span><select id="set-facing"><option value="environment">Trasera</option><option value="user">Frontal</option></select></div>
+        <div class="setting"><span>Tolerancia de postura<small>Cuánto puede diferir tu posición de inicio de la aprendida</small></span><select id="set-posture"><option value="strict">Estricta</option><option value="normal">Normal</option><option value="loose">Flexible</option></select></div>
+        <div class="setting"><span>Datos técnicos<small>Muestra en la cámara lo que mide la app</small></span><select id="set-debug"><option value="0">Ocultos</option><option value="1">Visibles</option></select></div>
         <div class="setting"><span>Precisión del detector<small>Más precisión consume más batería. "Preciso" ayuda cuando estás lejos.</small></span><select id="set-model"><option value="lite">Rápido</option><option value="full">Equilibrado</option><option value="heavy">Preciso</option></select></div>
       </div>
       <div class="card">
@@ -289,6 +292,7 @@ input[type="date"], select { font-size: 16px; }
       <label class="zoom" id="zoomwrap" hidden>Zoom <input type="range" id="cam-zoom" aria-label="Zoom de la cámara"><b class="num" id="zoomval">1×</b></label>
     </div>
     <div class="counter"><div class="reps num" id="cam-reps">0</div><div class="lbl">reps<b class="num" id="cam-set">Serie 1/4</b></div></div>
+    <pre class="diag" id="diag" hidden></pre>
     <div class="rom" aria-hidden="true"><i id="rom"></i></div>
     <div class="status" id="cam-status">Cargando detector…</div>
     <div class="rest" id="rest" hidden>
@@ -304,6 +308,7 @@ input[type="date"], select { font-size: 16px; }
       <label class="f">Reps serie anterior<input id="cam-lastreps" type="number" inputmode="numeric" min="0" disabled></label>
       <div class="chips" id="cam-rir" aria-label="RIR de la última serie"></div>
     </div>
+    <button class="btn ghost" id="cam-arm" style="width:100%">Estoy en posición · empezar a contar</button>
     <div class="ctlrow">
       <button class="btn ghost" id="cam-minus" aria-label="Restar una repetición">−1</button>
       <button class="btn ghost" id="cam-plus" aria-label="Sumar una repetición">+1</button>
@@ -342,8 +347,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 // ---------- estado persistente ----------
 const KEY = 'repcam.v1';
 function defaults() {
-  return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {},
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null } };
+  return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {},
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false } };
 }
 let S = defaults();
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(defaults(), JSON.parse(raw)); S.settings = Object.assign(defaults().settings, S.settings); } catch (e) { /* sin almacenamiento */ }
@@ -485,7 +490,8 @@ function renderEx() {
     '<div class="specs num"><div><small>Series</small><b>' + pl + '</b></div><div><small>Reps</small><b>' + e.repsText + '</b></div><div><small>RIR</small><b>' + e.rir + '</b></div><div><small>Descanso</small><b>' + fmtRest(e.rest) + '</b></div></div>' +
     '<div class="rec ' + r.action + '"><b>' + esc(r.text) + '</b><p>' + esc(r.detail) + '</p>' +
       (r.action === 'addset' ? '<button class="btn small ghost" id="ex-addset" style="align-self:flex-start">Agregar serie al plan</button>' : '') + '</div>' +
-    '<div class="demo"><canvas id="democv" width="140" height="140" aria-label="Animación de ejemplo"></canvas><div><p><b>Inicio:</b> ' + esc(C.GATES[e.pattern].say) + '.</p><p>' + esc(e.notes || 'Controla la bajada y usa todo el recorrido.') + '</p><p class="note">' + camTip(e) + '</p><a href="https://www.youtube.com/results?search_query=' + encodeURIComponent(e.name + ' técnica') + '" target="_blank" rel="noopener">Ver videos de técnica ↗</a></div></div>' +
+    '<div class="demo"><canvas id="democv" width="140" height="140" aria-label="Animación de ejemplo"></canvas><div><p><b>Posición de inicio:</b> ' + esc(C.GATES[e.pattern].say) + '.</p><p>' + esc(e.notes || 'Controla la bajada y usa todo el recorrido.') + '</p><p class="note">' + camTip(e) + '</p><a href="https://www.youtube.com/results?search_query=' + encodeURIComponent(e.name + ' técnica') + '" target="_blank" rel="noopener">Ver videos de técnica ↗</a></div></div>' +
+    '<div class="stepper" style="justify-content:space-between;flex-wrap:wrap">' + (S.poses[e.id] ? '<span>Posición de inicio aprendida ✓</span><button class="btn ghost small" id="ex-forget" style="width:auto;height:auto">Volver a aprender</button>' : '<span>La app aprenderá tu posición de inicio en la primera serie.</span>') + '</div>' +
     '<div class="stepper">Series en tu plan<button id="ex-minus" aria-label="Quitar serie">−</button><b class="num">' + base + '</b><button id="ex-plus" aria-label="Agregar serie">+</button></div>' +
     '<div><h3 style="font-size:20px;margin-bottom:8px">Hoy <span class="num" style="color:var(--muted);font-family:var(--body);font-size:14px;font-weight:500">' + done.length + '/' + pl + '</span></h3><div class="sets">' +
       (done.length ? done.map((l) => '<button class="set" data-log="' + l.id + '"><span class="n num">' + l.set + '</span><span class="v num">' + (l.weight != null ? C.fmtKg(l.weight) : '— kg') + ' × ' + l.reps + '<small>RIR ' + (l.rir ?? '—') + (l.restS != null ? ' · desc. ' + fmtRest(l.restS) : '') + '</small></span><span class="tag">' + (l.auto ? 'cámara' : 'manual') + '</span></button>').join('') : '<div class="empty">Aún no registras series de este ejercicio hoy.</div>') +
@@ -494,6 +500,7 @@ function renderEx() {
     (nx ? '<button class="btn ghost small" id="ex-next" style="align-self:flex-start">Siguiente: ' + esc(nx.name) + ' →</button>' : '');
   startDemo($('#democv'), e.pattern);
   $('#ex-back').onclick = closeEx;
+  if ($('#ex-forget')) $('#ex-forget').onclick = () => { delete S.poses[e.id]; delete S.rom[e.id]; save(); renderEx(); toast('La próxima serie aprenderá tu posición de nuevo'); };
   $('#ex-cam').onclick = () => openCam(e);
   $('#ex-manual').onclick = () => openModal(null);
   $('#ex-plus').onclick = () => setPlanned(e, base + 1);
@@ -592,8 +599,8 @@ async function openCam(ex) {
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
   const jf = C.jointsFor(ex.metric); cam.needed = new Set([].concat(...Object.values(jf)));
   $('#cam-voice').setAttribute('aria-pressed', String(S.settings.voice));
-  $('#cam-qual').className = 'qual'; $('#cam-qual').textContent = 'Buscando…';
-  Object.assign(cam, { ex, counter: new C.RepCounter(ex, S.rom[ex.id]), phase: 'wait', searchSince: performance.now(), hintT: 0, armVoiceT: 0, gateState: 'search', adj: 0, manualT: null, restStart: null, pendingRest: null, lastVisible: performance.now(), lastSaved: null, lastVideoT: -1 });
+  $('#cam-qual').className = 'qual'; $('#cam-qual').textContent = 'Buscando…'; $('#diag').hidden = !S.settings.debug; $('#cam-arm').hidden = false;
+  Object.assign(cam, { ex, counter: newCounter(ex), phase: 'wait', searchSince: performance.now(), hintT: 0, armVoiceT: 0, gateState: 'search', adj: 0, manualT: null, restStart: null, pendingRest: null, lastVisible: performance.now(), lastSaved: null, lastVideoT: -1 });
   $('#cam').hidden = false; $('#rest').hidden = true; document.body.classList.add('cam-open');
   $('#cam-name').textContent = ex.name;
   $('#cam-weight').value = suggestedWeight(ex) ?? '';
@@ -622,6 +629,8 @@ function closeCam() {
 $('#cam-close').onclick = closeCam;
 $('#cam-flip').onclick = async () => { S.settings.facing = S.settings.facing === 'user' ? 'environment' : 'user'; save(); try { await startStream(); } catch (e) { toast('No se pudo cambiar de cámara'); } };
 
+const TOL = { strict: 0.7, normal: 1.0, loose: 1.5 };
+function newCounter(ex) { return new C.RepCounter(ex, { typicalRange: S.rom[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1 }); }
 function curReps() { return Math.max(0, (cam.counter ? cam.counter.count() : 0) + cam.adj); }
 function setStatus(t) { const s = $('#cam-status'); if (!t) { s.hidden = true; return; } s.textContent = t; s.hidden = false; }
 function updateHud() {
@@ -680,29 +689,42 @@ function loop() {
 }
 // estado de la posición: indicador en pantalla y avisos por voz
 function restOver(now) { return cam.restStart == null || (now - cam.restStart) / 1000 >= cam.ex.rest; }
-function gateMsg(out) { return out.reason === 'camera' ? 'Ajusta la cámara: no veo ' + C.JOINT_HELP[cam.ex.metric] : C.GATES[cam.ex.pattern].say; }
-function handleGate(out, now) {
-  const el = $('#cam-qual');
-  if (out.state === 'armed') { if (el.className !== 'qual good') { el.className = 'qual good'; el.textContent = 'En posición · contando'; } }
-  else {
-    const cls = out.reason === 'camera' ? 'qual bad' : 'qual mid', txt = gateMsg(out);
-    if (el.className !== cls || el.textContent !== txt) { el.className = cls; el.textContent = txt; }
-  }
-  if (out.armed) {
-    cam.gateState = 'armed'; setStatus(null);
-    // durante el descanso queda listo en silencio; al terminar el descanso se avisa
-    if (cam.phase === 'set') say('Listo', true);
-    else if (cam.phase === 'wait' || restOver(now)) { if (now - cam.armVoiceT > 6000) { cam.armVoiceT = now; say('Posición correcta. Empieza.', true); } }
-  }
-  if (out.disarmed) {
-    cam.gateState = 'search'; cam.searchSince = now; cam.hintT = now;
-    if (cam.phase === 'set') say('Perdí la posición. ' + gateMsg(out) + '.', true);
-  }
-  // recordatorio por voz si no logra ponerse en posición (no molesta durante el descanso)
-  if (out.state === 'search' && cam.phase !== 'set' && (cam.phase === 'wait' || restOver(now))) {
-    if (now - cam.searchSince > 4000 && now - cam.hintT > 9000) { cam.hintT = now; say(gateMsg(out) + '.', true); }
+function gateMsg(out) {
+  if (out.reason === 'camera') return 'Ajusta la cámara: no veo ' + C.JOINT_HELP[cam.ex.metric];
+  return cam.counter.template ? 'Vuelve a tu posición de inicio y quédate quieto' : 'Ponte en la posición de inicio y quédate quieto un segundo';
+}
+function onArmed(now, manual) {
+  cam.gateState = 'armed'; setStatus(null);
+  const first = !cam.counter.template;
+  if (cam.phase === 'set') say('Listo', true);
+  else if (manual || cam.phase === 'wait' || restOver(now)) {
+    if (manual || now - cam.armVoiceT > 6000) { cam.armVoiceT = now; say(first ? 'Posición guardada. Empieza.' : 'Posición correcta. Empieza.', true); }
   }
 }
+function handleGate(out, now) {
+  const el = $('#cam-qual');
+  let cls, txt;
+  if (out.state === 'armed') { cls = 'qual good'; txt = 'En posición · contando'; }
+  else if (out.reason === 'camera') { cls = 'qual bad'; txt = gateMsg(out); }
+  else { const hp = cam.counter.holdProgress(now); cls = 'qual mid'; txt = hp > 0 ? 'Mantén la posición… ' + Math.round(hp * 100) + '%' : gateMsg(out); }
+  if (el.className !== cls || el.textContent !== txt) { el.className = cls; el.textContent = txt; }
+  $('#cam-arm').hidden = out.state === 'armed';
+  if (out.armed) onArmed(now, false);
+  if (out.disarmed) {
+    cam.gateState = 'search'; cam.searchSince = now; cam.hintT = now;
+    if (cam.phase === 'set') say('Te perdí de vista.', true);
+  }
+  if (out.state === 'search' && cam.phase !== 'set' && (cam.phase === 'wait' || restOver(now))) {
+    if (now - cam.searchSince > 5000 && now - cam.hintT > 10000) { cam.hintT = now; say(gateMsg(out) + '.', true); }
+  }
+  if (S.settings.debug && now - (cam.dbgT || 0) > 250) {
+    cam.dbgT = now; const d = cam.counter.debug(), f2 = (x, n) => x == null || !isFinite(x) ? '—' : x.toFixed(n);
+    const BY = { still: 'por quietud', template: 'por posición aprendida', manual: 'manual', pattern: 'por patrón' };
+    $('#diag').textContent = (d.state === 'armed' ? 'contando ' + (BY[d.by] || '') : 'buscando posición') + '\nposición ' + (d.template ? f2(d.dist, 2) + ' / ' + d.tol : 'sin aprender') +
+      '\nmovimiento ' + f2(d.motion, 3) + '\nvalor ' + f2(d.value, 1) + '  rango ' + f2(d.range, 1) + ' / mín ' + f2(d.minRange, 1) + '\nreps ' + curReps();
+  }
+}
+$('#cam-arm').onclick = () => { const now = performance.now(); if (cam.counter && cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); } };
 function onRep(now) {
   if (cam.phase !== 'set') beginSet(now);
   const n = curReps(); $('#cam-reps').textContent = n;
@@ -733,7 +755,8 @@ function endSet(auto) {
   rirChips($('#cam-rir'), null, (v) => { if (cam.lastSaved) { cam.lastSaved.rir = v; save(); } });
   const tr = cam.counter.typicalRange();
   if (reps >= 3 && tr) { S.rom[cam.ex.id] = S.rom[cam.ex.id] ? S.rom[cam.ex.id] * 0.5 + tr * 0.5 : tr; save(); }
-  cam.counter = new C.RepCounter(cam.ex, S.rom[cam.ex.id]); cam.searchSince = now; cam.hintT = now; cam.gateState = 'search';
+  if (reps >= 2 && cam.counter.armPose) { const old = S.poses[cam.ex.id]; S.poses[cam.ex.id] = C.blendPose(old, cam.counter.armPose, old ? 0.3 : 1); save(); }
+  cam.counter = newCounter(cam.ex); cam.searchSince = now; cam.hintT = now; cam.gateState = 'search';
   cam.adj = 0; cam.manualT = null; cam.pendingRest = null;
   cam.restStart = last; cam.restBeeped = false; cam.warned = false; cam.lastCount = null; cam.phase = 'rest'; $('#rest').hidden = false; setStatus(null);
   updateHud(); tickRest(now);
@@ -848,6 +871,7 @@ function loadSettings() {
   $('#set-start').value = S.startDate; $('#set-autoend').value = String(S.settings.autoEnd);
   $('#set-minreps').value = String(S.settings.minReps); $('#set-facing').value = S.settings.facing; $('#set-sound').value = S.settings.sound ? '1' : '0';
   $('#set-voice').value = S.settings.voice ? '1' : '0'; $('#set-prewarn').value = String(S.settings.prewarn); $('#set-model').value = S.settings.model;
+  $('#set-posture').value = S.settings.posture; $('#set-debug').value = S.settings.debug ? '1' : '0';
 }
 $('#set-start').onchange = (e) => { if (e.target.value) { S.startDate = C.ymd(C.mondayOf(C.parseYmd(e.target.value))); e.target.value = S.startDate; save(); renderToday(); } };
 $('#set-autoend').onchange = (e) => { S.settings.autoEnd = +e.target.value; save(); };
@@ -855,6 +879,8 @@ $('#set-minreps').onchange = (e) => { S.settings.minReps = +e.target.value; save
 $('#set-facing').onchange = (e) => { S.settings.facing = e.target.value; save(); };
 $('#set-sound').onchange = (e) => { S.settings.sound = e.target.value === '1'; save(); };
 $('#set-voice').onchange = (e) => { S.settings.voice = e.target.value === '1'; save(); if (S.settings.voice) say('Voz activada', true); };
+$('#set-posture').onchange = (e) => { S.settings.posture = e.target.value; save(); };
+$('#set-debug').onchange = (e) => { S.settings.debug = e.target.value === '1'; save(); };
 $('#set-prewarn').onchange = (e) => { S.settings.prewarn = +e.target.value; save(); };
 $('#set-model').onchange = (e) => { S.settings.model = e.target.value; save(); toast('Se usará la próxima vez que abras la cámara'); };
 

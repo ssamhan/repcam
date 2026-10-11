@@ -171,7 +171,8 @@
       }
       if (f.hip == null && v(S.sh) && v(S.hip) && v(S.kn)) f.hip = angle(lm[S.sh], lm[S.hip], lm[S.kn]);
     });
-    if (v(11) && v(12) && v(15) && v(16)) { const sw = dist(lm[11], lm[12]); if (sw) f.wristDist = dist(lm[15], lm[16]) / sw; }
+    // distancia entre muñecas: solo con vista de frente (con vista de lado los hombros se superponen y el valor es ruido)
+    if (v(11) && v(12) && v(15) && v(16)) { const sw = dist(lm[11], lm[12]); if (sw && (!f.torsoLen || sw / f.torsoLen > 0.3)) f.wristDist = dist(lm[15], lm[16]) / sw; }
     return f;
   }
   function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
@@ -239,65 +240,140 @@
              say: 'Arrodíllate con la cuerda junto a la cabeza' },
   };
 
-  // ---------- contador con compuerta de postura ----------
-  // Solo cuenta después de reconocer la posición de inicio. Cada rep válida debe:
-  // mantener la postura del ejercicio y tener un recorrido parecido al de tus series anteriores.
-  function RepCounter(ex, typicalRange) {
-    this.ex = ex; this.metric = ex.metric; this.gate = GATES[ex.pattern];
-    this.baseMin = MIN_RANGE[ex.metric] || 30;
-    this.minRange = typicalRange ? Math.max(this.baseMin, typicalRange * 0.55) : this.baseMin;
-    this.sides = { L: new SideTracker(this.minRange, ex.startHigh), R: new SideTracker(this.minRange, ex.startHigh), C: new SideTracker(this.minRange, ex.startHigh) };
-    this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0;
-    this.state = 'search'; this.startSince = null; this.badSince = null; this.reason = 'camera'; this.lastRep = null;
+  // ---------- firma de postura aprendida ----------
+  // Vector de rasgos comparable entre frames: no depende de la distancia a la cámara.
+  const SCALE = { torso: 25, hip: 25, kneeMax: 25, kneeMin: 25, wristDist: 0.4, elbow: 25, upperArm: 25, wrRel: 0.25, elRel: 0.25 };
+  function poseVector(f) {
+    if (!f) return null;
+    const v = { torso: f.torso, hip: f.hip, kneeMax: f.kneeMax, kneeMin: f.kneeMin, wristDist: f.wristDist, arms: {} };
+    f.arms.forEach(function (a) { v.arms[a.side] = { elbow: a.elbow, upperArm: a.upperArm, wrRel: a.wrRel, elRel: a.elRel }; });
+    return v;
   }
-  RepCounter.prototype.resetTrackers = function () {
-    this.base = this.reps;
-    for (const k in this.sides) this.sides[k].reset();
+  function sq(a, b, k) { if (a == null || b == null || isNaN(a) || isNaN(b)) return null; const d = (a - b) / SCALE[k]; return d * d; }
+  function armDist(a, b) { if (!a || !b) return null; let s = 0, n = 0; ['elbow', 'upperArm', 'wrRel', 'elRel'].forEach(function (k) { const d = sq(a[k], b[k], k); if (d != null) { s += d; n++; } }); return n ? { s: s, n: n } : null; }
+  // distancia RMS normalizada: ~1 = cada rasgo difiere en una "unidad" (25° o 0,25 del tronco)
+  function poseDistance(v, t) {
+    if (!v || !t) return Infinity;
+    let s = 0, n = 0;
+    ['torso', 'hip', 'kneeMax', 'kneeMin', 'wristDist'].forEach(function (k) { const d = sq(v[k], t[k], k); if (d != null) { s += d; n++; } });
+    let best = null;
+    for (const a in v.arms) for (const b in t.arms) { const d = armDist(v.arms[a], t.arms[b]); if (d && (!best || d.s / d.n < best.s / best.n || (a === b && d.s / d.n <= best.s / best.n))) best = d; }
+    // el peor de los dos grupos (tronco/piernas y brazos), para que uno no diluya al otro
+    const body = n ? Math.sqrt(s / n) : null, arms = best ? Math.sqrt(best.s / best.n) : null;
+    if ((n + (best ? best.n : 0)) < 2) return Infinity;
+    return Math.max(body || 0, arms || 0);
+  }
+  function meanPose(list) {
+    if (!list.length) return null;
+    const out = { arms: {} };
+    const avg = function (vals) { const xs = vals.filter(function (x) { return x != null && !isNaN(x); }); return xs.length ? xs.reduce(function (a, b) { return a + b; }, 0) / xs.length : null; };
+    ['torso', 'hip', 'kneeMax', 'kneeMin', 'wristDist'].forEach(function (k) { out[k] = avg(list.map(function (v) { return v[k]; })); });
+    ['L', 'R'].forEach(function (sd) {
+      const arms = list.map(function (v) { return v.arms[sd]; }).filter(Boolean);
+      if (arms.length >= list.length / 2) { const a = {}; ['elbow', 'upperArm', 'wrRel', 'elRel'].forEach(function (k) { a[k] = avg(arms.map(function (x) { return x[k]; })); }); out.arms[sd] = a; }
+    });
+    return out;
+  }
+  function blendPose(old, nw, w) {
+    if (!old) return nw; if (!nw) return old;
+    const mix = function (a, b) { return a == null ? b : b == null ? a : a * (1 - w) + b * w; };
+    const out = { arms: {} };
+    ['torso', 'hip', 'kneeMax', 'kneeMin', 'wristDist'].forEach(function (k) { out[k] = mix(old[k], nw[k]); });
+    ['L', 'R'].forEach(function (sd) {
+      const a = old.arms && old.arms[sd], b = nw.arms && nw.arms[sd];
+      if (a || b) { out.arms[sd] = {}; ['elbow', 'upperArm', 'wrRel', 'elRel'].forEach(function (k) { out.arms[sd][k] = mix(a && a[k], b && b[k]); }); }
+    });
+    return out;
+  }
+
+  // ---------- contador con posición de inicio ----------
+  // Arma el conteo cuando reconoce la posición de inicio:
+  //  - con posición aprendida: postura parecida a la aprendida, sostenida 0,6 s;
+  //  - sin posición aprendida: quieto ~1,2 s con las articulaciones visibles (o el patrón genérico);
+  //  - siempre: botón "Estoy en posición".
+  // Una vez armado, cuenta hasta perder de vista las articulaciones; después de cada serie hay que volver a armar.
+  function RepCounter(ex, opts) {
+    opts = opts || {};
+    this.ex = ex; this.metric = ex.metric; this.gate = GATES[ex.pattern];
+    this.template = opts.template || null; this.tol = opts.tolerance || 1.0;
+    this.baseMin = MIN_RANGE[ex.metric] || 30;
+    this.minRange = opts.typicalRange ? Math.max(this.baseMin, opts.typicalRange * 0.55) : this.baseMin;
+    this.needed = [].concat.apply([], Object.values(jointsFor(ex.metric)));
+    // quietud: se mide con todo el cuerpo (hombros, codos, muñecas, caderas, rodillas, tobillos)
+    this.body = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+    this.sides = { L: new SideTracker(this.minRange, ex.startHigh), R: new SideTracker(this.minRange, ex.startHigh), C: new SideTracker(this.minRange, ex.startHigh) };
+    this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0; this.lastRep = null;
+    this.state = 'search'; this.since = null; this.reason = 'camera';
+    this.motion = null; this.posBuf = []; this.recent = []; this.armPose = null; this.dist = null; this.armedBy = null;
+  }
+  RepCounter.prototype.resetTrackers = function () { this.base = this.reps; for (const k in this.sides) this.sides[k].reset(); };
+  RepCounter.prototype.arm = function (t, by) {
+    this.state = 'armed'; this.armedBy = by; this.since = null; this.awaySince = null; this.resetTrackers();
+    this.armPose = meanPose(this.recent.slice(-15).map(function (r) { return r.v; }));
   };
-  RepCounter.prototype.reset = function () {
-    this.reps = 0; this.base = 0; this.lastRep = null; this.maxRange = 0;
-    for (const k in this.sides) this.sides[k].reset();
-    this.state = 'search'; this.startSince = null; this.badSince = null;
-  };
+  RepCounter.prototype.smoothPose = function () { return meanPose(this.recent.slice(-8).map(function (r) { return r.v; })); };
+  RepCounter.prototype.manualArm = function (t) { if (this.state !== 'armed') { this.arm(t, 'manual'); return true; } return false; };
   RepCounter.prototype.update = function (t, lm, quality) {
     const out = { visible: false, rep: false, armed: false, disarmed: false };
-    const seeJoints = quality == null ? !!lm : quality >= 0.5;
-    if (seeJoints) { this.lastVisibleT = t; out.visible = true; }
-    const f = seeJoints ? features(lm) : null;
-    const g = this.gate;
-    const startOk = !!(f && g && g.start(f)), holdOk = !!(f && g && g.hold(f));
+    const see = quality == null ? !!lm : quality >= 0.5;
+    if (see) { this.lastVisibleT = t; out.visible = true; }
+    const f = see ? features(lm) : null, v = poseVector(f);
+    // movimiento: cuánto se desplazaron las articulaciones del ejercicio en el último segundo,
+    // relativo al tamaño del tronco (robusto al temblor del detector)
+    if (see) {
+      const pts = []; for (let i = 0; i < this.body.length; i++) { const p = lm[this.body[i]]; pts.push(p && (p.visibility ?? 1) >= VIS ? [p.x, p.y] : null); }
+      this.posBuf.push({ t: t, pts: pts }); while (this.posBuf.length && t - this.posBuf[0].t > 1000) this.posBuf.shift();
+      const sc = (f && f.torsoLen) || 100; let m = 0, n = 0;
+      for (let j = 0; j < this.body.length; j++) {
+        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, c = 0;
+        for (let b = 0; b < this.posBuf.length; b++) { const p = this.posBuf[b].pts[j]; if (!p) continue; c++; if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+        if (c > 3) { m += Math.hypot(x1 - x0, y1 - y0) / sc; n++; }
+      }
+      this.motion = n && this.posBuf.length > 8 ? m / n : null;
+    } else { this.posBuf = []; this.motion = null; }
+    if (v) { this.recent.push({ t: t, v: v }); if (this.recent.length > 30) this.recent.shift(); }
 
     if (this.state === 'search') {
-      this.reason = !seeJoints ? 'camera' : 'posture';
-      if (startOk) {
-        if (this.startSince == null) this.startSince = t;
-        if (t - this.startSince >= 700) { this.state = 'armed'; this.badSince = null; this.resetTrackers(); out.armed = true; }
-      } else this.startSince = null;
-    } else {
-      const lost = this.lastVisibleT == null || t - this.lastVisibleT > 1500;
-      if (!holdOk) { if (this.badSince == null) this.badSince = t; } else this.badSince = null;
-      if (lost || (this.badSince != null && t - this.badSince > 1200)) {
-        this.state = 'search'; this.startSince = null; this.reason = lost ? 'camera' : 'posture'; out.disarmed = true;
-      }
-    }
-
-    if (this.state === 'armed' && seeJoints) {
-      const vals = metricValues(this.metric, lm);
-      for (const k in vals) {
-        const s = this.sides[k];
-        s.frames++; if (holdOk) s.okFrames++;
-        if (s.push(t, vals[k])) {
-          const ratio = s.frames ? s.okFrames / s.frames : 0;
-          if (ratio >= 0.7) { if (s.range > this.maxRange) this.maxRange = s.range; }
-          else s.count--;              // rep con mala postura: no cuenta
-          s.frames = 0; s.okFrames = 0;
+      this.reason = !see ? 'camera' : 'posture';
+      let ok = false, need = 700, by = null;
+      if (see && v) {
+        if (this.template) {
+          this.dist = poseDistance(this.smoothPose(), this.template);
+          ok = this.dist <= this.tol && this.motion != null && this.motion < 0.15; need = 600; by = 'template';
+        } else {
+          const still = this.motion != null && this.motion < 0.1;
+          if (this.gate && f && this.gate.start(f)) { ok = true; need = 700; by = 'pattern'; }
+          else if (still) { ok = true; need = 1000; by = 'still'; }
         }
       }
+      if (ok) { if (this.since == null) this.since = t; if (t - this.since >= need) { this.arm(t, by); out.armed = true; } }
+      else this.since = null;
+    } else if (this.lastVisibleT == null || t - this.lastVisibleT > 1500) {
+      this.state = 'search'; this.since = null; this.reason = 'camera'; out.disarmed = true;
+    } else if (this.template && v) {
+      // quieto pero lejos de la posición aprendida (descansando, estirando): deja de contar
+      this.dist = poseDistance(this.smoothPose(), this.template);
+      const away = this.dist > this.tol * 1.8 && this.motion != null && this.motion < 0.15;
+      if (away) { if (this.awaySince == null) this.awaySince = t; if (t - this.awaySince > 2000) { this.state = 'search'; this.since = null; this.awaySince = null; this.reason = 'posture'; out.disarmed = true; } }
+      else this.awaySince = null;
+    }
+
+    if (this.state === 'armed' && see) {
+      const vals = metricValues(this.metric, lm);
+      for (const k in vals) { const s = this.sides[k]; if (s.push(t, vals[k]) && s.range > this.maxRange) this.maxRange = s.range; }
       let best = 0; for (const k in this.sides) if (this.sides[k].count > best) best = this.sides[k].count;
       if (this.base + best > this.reps) { this.reps = this.base + best; this.lastRep = t; out.rep = true; }
     }
     out.state = this.state; out.reason = this.reason;
     return out;
+  };
+  RepCounter.prototype.holdProgress = function (t) {
+    if (this.state !== 'search' || this.since == null) return 0;
+    const need = this.template ? 600 : 1000; return Math.min(1, (t - this.since) / need);
+  };
+  RepCounter.prototype.debug = function () {
+    let b = null; for (const k in this.sides) { const s = this.sides[k]; if (s.ema != null && (!b || s.range > b.range)) b = s; }
+    return { state: this.state, by: this.armedBy, dist: this.dist, tol: this.tol, motion: this.motion, value: b ? b.ema : null, range: b ? b.range : null, minRange: this.minRange, template: !!this.template };
   };
   RepCounter.prototype.count = function () { return this.reps; };
   RepCounter.prototype.lastRepT = function () { return this.lastRep; };
@@ -406,6 +482,6 @@
   const api = { PLAN: PLAN, DAYS: DAYS, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
-    jointsFor: jointsFor, detectionQuality: detectionQuality, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES };
+    jointsFor: jointsFor, detectionQuality: detectionQuality, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
