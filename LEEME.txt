@@ -13,12 +13,23 @@ En el teléfono
 2. Menú ⋮ → "Instalar app" (o "Agregar a pantalla principal").
 3. La primera vez que uses la cámara, acepta el permiso. El detector (~8 MB) se descarga una vez y queda guardado para usarse sin conexión.
 
+Entrenamiento guiado
+- En Hoy elige "Cámara en trípode" o "Teléfono en el cuerpo" y toca "Comenzar entrenamiento guiado".
+- La voz te dice qué ejercicio sigue, qué preparar, cuenta las reps y controla los descansos. Pasa sola al siguiente ejercicio.
+- "Saltar descanso" y "Saltar ejercicio" están en la pantalla si quieres avanzar antes.
+
+Modo "Teléfono en el cuerpo" (recomendado si la cámara cuenta mal)
+- Necesitas un brazalete deportivo para celular (o banda elástica). La voz te dice dónde ponerlo: antebrazo, brazo, muslo, tobillo o pecho.
+- Quédate quieto un segundo en la posición de inicio y empieza. Cuenta por el giro del brazo o la pierna.
+- Durante el descanso no cuenta (puedes caminar); se activa en los últimos 10 segundos.
+- Los gemelos no se pueden contar con el sensor: usa +1 / −1.
+
 Consejos para que cuente bien
 - Teléfono fijo (apoyado en el rack o un trípode) a 2–3 m, con el cuerpo entero en cuadro.
 - De lado para sentadillas, press, remos y curls; de frente para elevaciones laterales, cruces y jalón.
 - Primera serie de cada ejercicio: ponte en la posición de inicio y quédate quieto 1–2 segundos (o toca "Estoy en posición"). La app guarda esa postura.
 - Siguientes series: solo cuenta cuando vuelves a esa postura. Si cambiaste el ángulo de la cámara, usa "Volver a aprender" en el ejercicio.
-- Si algo no cuenta, activa Ajustes → Datos técnicos y mándale un pantallazo a Claude.
+- Para mejorar el conteo: entrena normal con la cámara y corrige con +1 / −1 cuando se equivoque. Después ve a Ajustes → "Exportar datos para Claude" y adjunta ese archivo en el chat con Claude.
 - Si cuenta mal, usa +1 / −1 o corrige las reps después. El peso siempre lo ingresas tú.
 
 Tus datos quedan solo en el teléfono. Haz una "Copia de seguridad" en Historial de vez en cuando.

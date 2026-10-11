@@ -172,7 +172,7 @@ input[type="date"], select { font-size: 16px; }
 .rom { position: absolute; right: 14px; bottom: 18px; width: 12px; height: 38%; border-radius: 6px; background: rgb(255 255 255 / .2); overflow: hidden; }
 .rom i { position: absolute; left: 0; right: 0; bottom: 0; background: #ff8a1f; border-radius: 6px; transition: height .08s linear; }
 .status { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); background: rgb(0 0 0 / .62); padding: 10px 14px; border-radius: 12px; font-size: 15px; text-align: center; max-width: 86%; }
-.rest { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / .55); pointer-events: none; }
+.rest { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgb(0 0 0 / .55); pointer-events: none; }
 .hud-top, .hud-tools { z-index: 2; }
 .rest .ring { position: relative; width: 220px; height: 220px; display: grid; place-items: center; text-align: center; }
 .rest svg { position: absolute; inset: 0; transform: rotate(-90deg); }
@@ -187,6 +187,19 @@ input[type="date"], select { font-size: 16px; }
 .zoom input { width: 120px; padding: 0; border: 0; background: none; accent-color: #ff8a1f; }
 .iconbtn[aria-pressed="false"] { opacity: .55; }
 .diag { position: absolute; left: 14px; bottom: 140px; margin: 0; font: 12px/1.35 ui-monospace, Menlo, monospace; background: rgb(0 0 0 / .6); color: #fff; padding: 8px 10px; border-radius: 10px; z-index: 2; }
+.cam.sensor video, .cam.sensor canvas.ov, .cam.sensor #cam-flip, .cam.sensor #zoomwrap { display: none !important; }
+.cam.sensor .stage { background: radial-gradient(circle at 50% 40%, #1e242b, #0b0d10); }
+.rest .nextup { pointer-events: auto; margin-top: 18px; background: rgb(0 0 0 / .55); border-radius: 14px; padding: 12px 14px; max-width: 320px; text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.rest .nextup small { text-transform: uppercase; letter-spacing: .08em; font-size: 11px; opacity: .8; }
+.rest .nextup b { font-family: var(--display); font-size: 24px; line-height: 1.1; }
+.rest .nextup span { font-size: 13px; opacity: .9; }
+.rest .stack { display: flex; flex-direction: column; align-items: center; }
+.rest .skip { pointer-events: auto; margin-top: 14px; background: rgb(255 255 255 / .16); color: #fff; border: 0; border-radius: 99px; padding: 8px 16px; font-weight: 600; cursor: pointer; }
+.hud-tools .skipex { background: rgb(0 0 0 / .55); color: #fff; border: 0; border-radius: 99px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.startcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: none; border-radius: 9px; padding: 8px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--fg); }
 .cam .controls { background: #0d0f12; padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 12px); display: flex; flex-direction: column; gap: 10px; }
 .lastset { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
 .lastset .chips { grid-column: 1 / -1; align-items: center; }
@@ -219,6 +232,11 @@ input[type="date"], select { font-size: 16px; }
     <div class="session" id="session"></div>
     <div style="height:12px"></div>
     <div id="restnote"></div>
+    <div class="startcard">
+      <div class="seg" role="group" aria-label="Cómo contar"><button data-mode="camera" aria-pressed="true">Cámara en trípode</button><button data-mode="sensor" aria-pressed="false">Teléfono en el cuerpo</button></div>
+      <button class="btn primary" id="btn-start">Comenzar entrenamiento guiado</button>
+      <p class="note" id="start-note"></p>
+    </div>
     <div class="list" id="exlist"></div>
   </section>
 
@@ -260,6 +278,14 @@ input[type="date"], select { font-size: 16px; }
         </div>
         <input type="file" id="file-restore" accept="application/json,.json" hidden>
       </div>
+      <div class="card">
+        <h3>Datos para mejorar el conteo</h3>
+        <p class="note">Mientras usas la cámara, la app guarda solo los puntos del cuerpo que detecta (sin video ni fotos) y las correcciones que haces. Mándale el archivo a Claude para ajustar el conteo a tus ejercicios.</p>
+        <div class="setting"><span>Grabar datos de movimiento</span><select id="set-record"><option value="1">Sí</option><option value="0">No</option></select></div>
+        <div class="setting"><span>Modo de conteo<small>"Contar siempre" no espera la posición de inicio</small></span><select id="set-countmode"><option value="pose">Con posición de inicio</option><option value="always">Contar siempre</option></select></div>
+        <p class="note num" id="rec-info">—</p>
+        <div class="row"><button class="btn primary small" id="btn-recexport">Exportar datos para Claude</button><button class="btn ghost small" id="btn-recclear">Borrar grabaciones</button></div>
+      </div>
       <p class="note">Plan basado en Pelland et al. (Sports Medicine, 2026): 10–20 series efectivas por músculo y semana, repartidas en dos sesiones.</p>
     </div>
   </section>
@@ -289,6 +315,7 @@ input[type="date"], select { font-size: 16px; }
     <div class="hud-tools">
       <span class="qual" id="cam-qual">Buscando…</span>
       <button class="iconbtn" id="cam-voice" aria-label="Voz" aria-pressed="true" style="width:36px;height:36px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
+      <button class="skipex" id="cam-skipex" hidden>Saltar ejercicio ›</button>
       <label class="zoom" id="zoomwrap" hidden>Zoom <input type="range" id="cam-zoom" aria-label="Zoom de la cámara"><b class="num" id="zoomval">1×</b></label>
     </div>
     <div class="counter"><div class="reps num" id="cam-reps">0</div><div class="lbl">reps<b class="num" id="cam-set">Serie 1/4</b></div></div>
@@ -299,6 +326,10 @@ input[type="date"], select { font-size: 16px; }
       <div class="ring">
         <svg viewBox="0 0 220 220"><circle cx="110" cy="110" r="100" fill="none" stroke="rgb(255 255 255 / .18)" stroke-width="10"/><circle id="rest-arc" cx="110" cy="110" r="100" fill="none" stroke="#ff8a1f" stroke-width="10" stroke-linecap="round" stroke-dasharray="628.3" stroke-dashoffset="0"/></svg>
         <div><div class="time num" id="rest-time">2:00</div><div class="sub" id="rest-sub">Descanso</div></div>
+      </div>
+      <div class="stack">
+        <div class="nextup" id="rest-next" hidden><small>Siguiente ejercicio</small><b id="rest-next-name"></b><span id="rest-next-tip"></span></div>
+        <button class="skip" id="rest-skip">Saltar descanso</button>
       </div>
     </div>
   </div>
@@ -347,8 +378,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 // ---------- estado persistente ----------
 const KEY = 'repcam.v1';
 function defaults() {
-  return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {},
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false } };
+  return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {},
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera' } };
 }
 let S = defaults();
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(defaults(), JSON.parse(raw)); S.settings = Object.assign(defaults().settings, S.settings); } catch (e) { /* sin almacenamiento */ }
@@ -366,7 +397,8 @@ function renumber(exId, date) { S.logs.filter((l) => l.exId === exId && l.date =
 function addLog(ex, o) {
   const l = { id: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: Date.now(), date: todayYmd(), week: weekNow(),
     day: ex.day, exId: ex.id, exName: ex.name, set: logsToday(ex.id).length + 1,
-    weight: o.weight ?? null, reps: o.reps, rir: o.rir ?? null, restS: o.restS ?? null, auto: !!o.auto, notes: o.notes || '' };
+    weight: o.weight ?? null, reps: o.reps, rir: o.rir ?? null, restS: o.restS ?? null, auto: !!o.auto, notes: o.notes || '',
+    detected: o.detected ?? null, adj: o.adj ?? null, recId: o.recId ?? null };
   S.logs.push(l); save(); return l;
 }
 function rec(ex) { return C.recommend(ex, S.logs, S.overrides, weekNow(), todayYmd()); }
@@ -400,12 +432,29 @@ function renderToday() {
   if (!tk) { const wd = new Date().getDay(); note = '<div class="restday">Hoy ' + (wd === 6 ? 'sábado' : 'domingo') + ' descansas. Próxima sesión: Lunes · Torso. Puedes revisar cualquier día arriba.</div><div style="height:12px"></div>'; }
   else if (tk !== selDay) note = '<div class="restday">Estás viendo el ' + d.name.toLowerCase() + '. Las series se guardan con la fecha de hoy.</div><div style="height:12px"></div>';
   $('#restnote').innerHTML = note;
+  renderStart();
   $('#exlist').innerHTML = exs.map((e) => {
     const done = logsToday(e.id).length, pl = C.plannedSets(e, S.overrides, w), r = rec(e);
     let dots = ''; for (let i = 0; i < pl; i++) dots += '<span class="dot' + (i < done ? ' on' : '') + '"></span>';
     return '<button class="ex' + (done >= pl ? ' done' : '') + '" data-ex="' + e.id + '"><span class="name">' + esc(e.name) + '</span><span class="dots" aria-label="' + done + ' de ' + pl + ' series">' + dots + '</span><span class="meta num">' + pl + ' × ' + e.repsText + ' · RIR ' + e.rir + ' &nbsp;<span class="pill ' + r.action + '">' + esc(r.text) + '</span></span></button>';
   }).join('');
 }
+function renderStart() {
+  document.querySelectorAll('.seg [data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === S.settings.mode)));
+  const exs = C.PLAN.filter((e) => e.day === selDay), w = weekNow();
+  const left = exs.filter((e) => logsToday(e.id).length < C.plannedSets(e, S.overrides, w));
+  $('#btn-start').disabled = !left.length;
+  $('#btn-start').textContent = !left.length ? 'Entrenamiento de hoy completo' : (left.length < exs.length ? 'Continuar entrenamiento guiado' : 'Comenzar entrenamiento guiado');
+  $('#start-note').textContent = S.settings.mode === 'sensor'
+    ? 'Llevas el teléfono puesto (brazalete o banda). La voz te dice dónde ponerlo en cada ejercicio y cuenta por el giro del brazo o la pierna.'
+    : 'El teléfono va fijo en un trípode o apoyado. La app pasa sola de un ejercicio al siguiente y te avisa qué preparar.';
+}
+document.querySelector('.seg').addEventListener('click', (ev) => { const b = ev.target.closest('[data-mode]'); if (!b) return; S.settings.mode = b.dataset.mode; save(); renderStart(); });
+$('#btn-start').onclick = () => {
+  const w = weekNow(); const exs = C.PLAN.filter((e) => e.day === selDay);
+  const queue = exs.map((e) => e.id); const first = exs.find((e) => logsToday(e.id).length < C.plannedSets(e, S.overrides, w));
+  if (first) openCam(first, true, queue);
+};
 $('#days').addEventListener('click', (ev) => { const b = ev.target.closest('[data-day]'); if (!b) return; selDay = b.dataset.day; renderToday(); });
 $('#exlist').addEventListener('click', (ev) => { const b = ev.target.closest('[data-ex]'); if (b) openEx(b.dataset.ex); });
 
@@ -496,12 +545,12 @@ function renderEx() {
     '<div><h3 style="font-size:20px;margin-bottom:8px">Hoy <span class="num" style="color:var(--muted);font-family:var(--body);font-size:14px;font-weight:500">' + done.length + '/' + pl + '</span></h3><div class="sets">' +
       (done.length ? done.map((l) => '<button class="set" data-log="' + l.id + '"><span class="n num">' + l.set + '</span><span class="v num">' + (l.weight != null ? C.fmtKg(l.weight) : '— kg') + ' × ' + l.reps + '<small>RIR ' + (l.rir ?? '—') + (l.restS != null ? ' · desc. ' + fmtRest(l.restS) : '') + '</small></span><span class="tag">' + (l.auto ? 'cámara' : 'manual') + '</span></button>').join('') : '<div class="empty">Aún no registras series de este ejercicio hoy.</div>') +
     '</div></div>' +
-    '<div class="row"><button class="btn primary" id="ex-cam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Usar cámara</button><button class="btn ghost" id="ex-manual">Registrar a mano</button></div>' +
+    '<div class="row"><button class="btn primary" id="ex-cam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>' + (S.settings.mode === 'sensor' ? 'Usar sensor' : 'Usar cámara') + '</button><button class="btn ghost" id="ex-manual">Registrar a mano</button></div>' +
     (nx ? '<button class="btn ghost small" id="ex-next" style="align-self:flex-start">Siguiente: ' + esc(nx.name) + ' →</button>' : '');
   startDemo($('#democv'), e.pattern);
   $('#ex-back').onclick = closeEx;
   if ($('#ex-forget')) $('#ex-forget').onclick = () => { delete S.poses[e.id]; delete S.rom[e.id]; save(); renderEx(); toast('La próxima serie aprenderá tu posición de nuevo'); };
-  $('#ex-cam').onclick = () => openCam(e);
+  $('#ex-cam').onclick = () => openCam(e, false);
   $('#ex-manual').onclick = () => openModal(null);
   $('#ex-plus').onclick = () => setPlanned(e, base + 1);
   $('#ex-minus').onclick = () => setPlanned(e, Math.max(1, base - 1));
@@ -594,43 +643,152 @@ function applyZoom(v) {
 $('#cam-zoom').addEventListener('input', (e) => { applyZoom(e.target.value); S.settings.zoom = +e.target.value; save(); });
 function stopStream() { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } }
 
-async function openCam(ex) {
-  if (!window.isSecureContext || !navigator.mediaDevices) { toast('La cámara necesita que la app se abra desde https'); return; }
-  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
+function setupExercise(ex) {
   const jf = C.jointsFor(ex.metric); cam.needed = new Set([].concat(...Object.values(jf)));
-  $('#cam-voice').setAttribute('aria-pressed', String(S.settings.voice));
-  $('#cam-qual').className = 'qual'; $('#cam-qual').textContent = 'Buscando…'; $('#diag').hidden = !S.settings.debug; $('#cam-arm').hidden = false;
-  Object.assign(cam, { ex, counter: newCounter(ex), phase: 'wait', searchSince: performance.now(), hintT: 0, armVoiceT: 0, gateState: 'search', adj: 0, manualT: null, restStart: null, pendingRest: null, lastVisible: performance.now(), lastSaved: null, lastVideoT: -1 });
-  $('#cam').hidden = false; $('#rest').hidden = true; document.body.classList.add('cam-open');
+  Object.assign(cam, { ex, counter: newCounter(ex), phase: 'wait', searchSince: performance.now(), hintT: performance.now(), armVoiceT: -Infinity, gateState: 'search', adj: 0, manualT: null,
+    restStart: null, restTarget: ex.rest, nextEx: null, pendingRest: null, lastVisible: performance.now(), lastSaved: null, lastVideoT: -1 });
+  $('#rest').hidden = true; $('#rest-next').hidden = true;
   $('#cam-name').textContent = ex.name;
   $('#cam-weight').value = suggestedWeight(ex) ?? '';
   $('#cam-lastreps').value = ''; $('#cam-lastreps').disabled = true;
   rirChips($('#cam-rir'), null, () => {}); $('#cam-rir').style.visibility = 'hidden';
-  updateHud(); setStatus('Cargando detector… la primera vez descarga unos 8 MB');
+  $('#cam-qual').className = 'qual'; $('#cam-qual').textContent = 'Buscando…'; $('#cam-arm').hidden = false;
+  $('#cam-skipex').hidden = !cam.guided;
+  updateHud();
+}
+// versión corta para la voz
+function voiceTip(ex) {
+  if (S.settings.mode === 'sensor') { const pl = C.PATTERN_PLACE[ex.pattern]; return pl ? 'Teléfono ' + C.PLACEMENT[pl].split(',')[0] + '.' : 'Este se cuenta con los botones.'; }
+  return 'Teléfono ' + (['fly', 'raise', 'pull'].includes(ex.pattern) ? 'de frente.' : 'de lado.');
+}
+function setupTip(ex) {
+  if (S.settings.mode === 'sensor') { const pl = C.PATTERN_PLACE[ex.pattern]; return pl ? 'Pon el teléfono ' + C.PLACEMENT[pl] + '.' : 'Este ejercicio no se puede contar con el sensor: usa los botones más uno y menos uno.'; }
+  return camTip(ex);
+}
+function introSay(ex) {
+  const n = C.plannedSets(ex, S.overrides, weekNow()), done = logsToday(ex.id).length;
+  return ex.name + '. ' + (done ? 'Llevas ' + numWord(done) + ' de ' + seriesWord(n) + '.' : seriesWord(n) + ' de ' + ex.repsText.replace('–', ' a ') + '.') + ' ' + voiceTip(ex) + ' Ponte en posición de inicio.';
+}
+async function openCam(ex, guided, queue) {
+  const sensor = S.settings.mode === 'sensor';
+  if (!window.isSecureContext) { toast('La app necesita abrirse desde https'); return; }
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
+  cam.guided = !!guided; cam.queue = queue || null;
+  $('#cam-voice').setAttribute('aria-pressed', String(S.settings.voice));
+  $('#diag').hidden = !S.settings.debug;
+  $('#cam').classList.toggle('sensor', sensor);
+  setupExercise(ex);
+  $('#cam').hidden = false; document.body.classList.add('cam-open');
   try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  startMotion();
+  if (guided) {
+    const d = C.DAYS.find((x) => x.key === ex.day), left = (queue || []).length;
+    say('Entrenamiento de ' + d.name.toLowerCase() + ', ' + d.session.split(' ·')[0] + '. ' + numWord(left) + ' ejercicios. Empezamos con ' + introSay(ex), true);
+  }
+  if (sensor) {
+    setStatus(setupTip(ex) + ' Quédate quieto un segundo en la posición de inicio y empieza.');
+    if (!guided) say(introSay(ex), true);
+    sensorLoop();
+    return;
+  }
+  setStatus('Cargando detector… la primera vez descarga unos 8 MB');
   try {
     await Promise.all([startStream(), loadLandmarker()]);
   } catch (e) {
     console.error(e);
     setStatus(e && e.name === 'NotAllowedError' ? 'Sin permiso para la cámara. Actívalo en los ajustes del navegador, o usa +1 / −1 para contar a mano.' : 'No se pudo iniciar la detección. Puedes contar con +1 / −1 y terminar la serie a mano.');
-    return;
+    sensorLoop(); return;
   }
   setStatus(camTip(ex));
-  say(ex.name + '. ' + numWord(C.plannedSets(ex, S.overrides, weekNow())) + ' series de ' + ex.repsText.replace('–', ' a ') + '. Ponte en posición de inicio.', true);
+  REC.start(ex, $('#video'));
+  if (!guided) say(introSay(ex), true);
   cam.hintT = performance.now();
   loop();
 }
+// pasa al siguiente ejercicio sin cerrar la cámara
+function switchExercise(ex) {
+  REC.stop();
+  setupExercise(ex);
+  if (S.settings.mode === 'camera' && stream) REC.start(ex, $('#video'));
+  setStatus(setupTip(ex));
+  say(introSay(ex), true);
+}
+function nextInQueue() {
+  if (!cam.queue) return null;
+  const i = cam.queue.indexOf(cam.ex.id);
+  for (let k = i + 1; k < cam.queue.length; k++) { const e = exById(cam.queue[k]); if (logsToday(e.id).length < C.plannedSets(e, S.overrides, weekNow())) return e; }
+  return null;
+}
+$('#cam-skipex').onclick = () => {
+  if (cam.phase === 'set' && curReps() > 0) endSet(false);
+  const nx = nextInQueue();
+  if (nx) switchExercise(nx); else { say('No quedan más ejercicios hoy.', true); toast('No quedan más ejercicios'); }
+};
+$('#rest-skip').onclick = () => {
+  if (cam.phase !== 'rest') return;
+  if (cam.nextEx) { switchExercise(cam.nextEx); return; }
+  cam.restStart = performance.now() - cam.restTarget * 1000; cam.warned = true; cam.lastCount = 0;
+};
+// ---------- sensores del teléfono ----------
+let motionOn = false, lastMotion = null, bump = null, bumpT = 0;
+function onMotion(e) {
+  const g = e.accelerationIncludingGravity; if (!g || g.x == null) return;
+  const rr = e.rotationRate; const rot = rr && rr.alpha != null ? Math.hypot(rr.alpha, rr.beta, rr.gamma) : null;
+  lastMotion = { x: g.x, y: g.y, z: g.z, rot };
+  if (cam.ex == null) return;
+  const now = performance.now();
+  if (S.settings.mode === 'sensor') {
+    const c = cam.counter;
+    // en el descanso no cuenta hasta los últimos segundos (evita contar al caminar o estirarse)
+    c.paused = cam.phase === 'rest' && cam.restStart != null && (now - cam.restStart) / 1000 < cam.restTarget - Math.max(10, S.settings.prewarn || 0);
+    const out = c.update(now, g.x, g.y, g.z, rot);
+    cam.lastOut = out;
+    if (out.rep) onRep(now);
+    if (out.armed && !cam.nextEx) { onArmed(now, false); }
+  } else {
+    // teléfono en trípode: si se mueve, la posición aprendida ya no sirve
+    if (bump && bump(g.x, g.y, g.z) && now - bumpT > 8000 && cam.phase !== 'set') {
+      bumpT = now;
+      if (S.poses[cam.ex.id] || (cam.counter && cam.counter.template)) {
+        delete S.poses[cam.ex.id]; save();
+        if (cam.counter) { cam.counter.template = null; if (cam.counter.state === 'armed') cam.counter.state = 'search'; }
+        say('Se movió el teléfono. Quédate quieto en la posición de inicio para recalibrar.', true);
+      }
+    }
+  }
+}
+function startMotion() {
+  bump = C.bumpDetector();
+  if (motionOn || !('DeviceMotionEvent' in window)) return;
+  window.addEventListener('devicemotion', onMotion); motionOn = true;
+}
+function stopMotion() { if (motionOn) { window.removeEventListener('devicemotion', onMotion); motionOn = false; } }
+function sensorLoop() {
+  camRaf = requestAnimationFrame(sensorLoop);
+  const now = performance.now();
+  const out = cam.lastOut || { state: cam.counter.state, reason: 'posture' };
+  if (S.settings.mode === 'sensor') {
+    handleGate(Object.assign({}, out, { armed: false, disarmed: false }), now);
+    const pr = cam.counter.progress(); $('#rom').style.height = pr == null || out.state !== 'armed' ? '0%' : Math.round(Math.max(0, Math.min(1, pr)) * 100) + '%';
+    if (S.settings.mode === 'sensor' && !lastMotion && now - (cam.noSensT || 0) > 4000) { cam.noSensT = now; setStatus('El navegador no entrega datos del sensor. Abre la app desde Chrome y concede el acceso a sensores de movimiento.'); }
+  }
+  tick(now);
+}
 function closeCam() {
-  cancelAnimationFrame(camRaf); camRaf = null; stopStream();
+  cancelAnimationFrame(camRaf); camRaf = null; stopStream(); stopMotion(); cam.lastOut = null;
   try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
   if (cam.phase === 'set' && curReps() > 0) endSet(false);
+  REC.stop();
   $('#cam').hidden = true; document.body.classList.remove('cam-open'); cam.ex = null; refreshAll();
 }
 $('#cam-close').onclick = closeCam;
 $('#cam-flip').onclick = async () => { S.settings.facing = S.settings.facing === 'user' ? 'environment' : 'user'; save(); try { await startStream(); } catch (e) { toast('No se pudo cambiar de cámara'); } };
 
 const TOL = { strict: 0.7, normal: 1.0, loose: 1.5 };
-function newCounter(ex) { return new C.RepCounter(ex, { typicalRange: S.rom[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1 }); }
+function newCounter(ex) {
+  if (S.settings.mode === 'sensor') return new C.SensorCounter(ex, { typicalRange: S.romS[ex.id] });
+  return new C.RepCounter(ex, { typicalRange: S.rom[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1, always: S.settings.countMode === 'always' });
+}
 function curReps() { return Math.max(0, (cam.counter ? cam.counter.count() : 0) + cam.adj); }
 function setStatus(t) { const s = $('#cam-status'); if (!t) { s.hidden = true; return; } s.textContent = t; s.hidden = false; }
 function updateHud() {
@@ -676,26 +834,34 @@ function loop() {
     const out = cam.counter.update(now, lmPx, q);
     if (out.visible) cam.lastVisible = now;
     handleGate(out, now);
+    REC.frame(now, raw, q, out.state);
     if (out.rep) onRep(now);
     const pr = cam.counter.progress(); $('#rom').style.height = pr == null || out.state !== 'armed' ? '0%' : Math.round(Math.max(0, Math.min(1, pr)) * 100) + '%';
   }
+  tick(now);
+}
+function tick(now) {
   // fin automático de serie
   if (cam.phase === 'set') {
     const last = Math.max(cam.counter.lastRepT() || 0, cam.manualT || 0);
-    const idle = now - last, gone = now - cam.lastVisible;
+    const idle = now - last, gone = S.settings.mode === 'sensor' ? 0 : now - cam.lastVisible;
     if (idle > S.settings.autoEnd * 1000 || (gone > 6000 && idle > 3000)) endSet(true);
   }
   if (cam.phase === 'rest') tickRest(now);
 }
 // estado de la posición: indicador en pantalla y avisos por voz
-function restOver(now) { return cam.restStart == null || (now - cam.restStart) / 1000 >= cam.ex.rest; }
+function restOver(now) { return cam.restStart == null || (now - cam.restStart) / 1000 >= (cam.restTarget || cam.ex.rest); }
 function gateMsg(out) {
+  if (S.settings.mode === 'sensor') {
+    if (!C.PATTERN_PLACE[cam.ex.pattern]) return 'Cuenta con +1 / −1';
+    return cam.counter.paused ? 'Descansando · cuenta al final del descanso' : 'Quédate quieto en la posición de inicio';
+  }
   if (out.reason === 'camera') return 'Ajusta la cámara: no veo ' + C.JOINT_HELP[cam.ex.metric];
   return cam.counter.template ? 'Vuelve a tu posición de inicio y quédate quieto' : 'Ponte en la posición de inicio y quédate quieto un segundo';
 }
 function onArmed(now, manual) {
   cam.gateState = 'armed'; setStatus(null);
-  const first = !cam.counter.template;
+  const first = S.settings.mode !== 'sensor' && !cam.counter.template;
   if (cam.phase === 'set') say('Listo', true);
   else if (manual || cam.phase === 'wait' || restOver(now)) {
     if (manual || now - cam.armVoiceT > 6000) { cam.armVoiceT = now; say(first ? 'Posición guardada. Empieza.' : 'Posición correcta. Empieza.', true); }
@@ -704,17 +870,20 @@ function onArmed(now, manual) {
 function handleGate(out, now) {
   const el = $('#cam-qual');
   let cls, txt;
-  if (out.state === 'armed') { cls = 'qual good'; txt = 'En posición · contando'; }
+  if (cam.nextEx) { cls = 'qual mid'; txt = 'Prepara: ' + cam.nextEx.name; }
+  else if (cam.phase === 'done') { cls = 'qual good'; txt = 'Entrenamiento terminado'; }
+  else if (out.state === 'armed') { cls = 'qual good'; txt = 'En posición · contando'; }
   else if (out.reason === 'camera') { cls = 'qual bad'; txt = gateMsg(out); }
   else { const hp = cam.counter.holdProgress(now); cls = 'qual mid'; txt = hp > 0 ? 'Mantén la posición… ' + Math.round(hp * 100) + '%' : gateMsg(out); }
   if (el.className !== cls || el.textContent !== txt) { el.className = cls; el.textContent = txt; }
   $('#cam-arm').hidden = out.state === 'armed';
-  if (out.armed) onArmed(now, false);
+  if (out.armed && !cam.nextEx) { onArmed(now, false); REC.ev('armed', cam.counter.armedBy); }
+  if (out.disarmed) REC.ev('disarmed', out.reason);
   if (out.disarmed) {
     cam.gateState = 'search'; cam.searchSince = now; cam.hintT = now;
     if (cam.phase === 'set') say('Te perdí de vista.', true);
   }
-  if (out.state === 'search' && cam.phase !== 'set' && (cam.phase === 'wait' || restOver(now))) {
+  if (out.state === 'search' && !cam.nextEx && cam.phase !== 'set' && cam.phase !== 'done' && (cam.phase === 'wait' || restOver(now))) {
     if (now - cam.searchSince > 5000 && now - cam.hintT > 10000) { cam.hintT = now; say(gateMsg(out) + '.', true); }
   }
   if (S.settings.debug && now - (cam.dbgT || 0) > 250) {
@@ -724,8 +893,10 @@ function handleGate(out, now) {
       '\nmovimiento ' + f2(d.motion, 3) + '\nvalor ' + f2(d.value, 1) + '  rango ' + f2(d.range, 1) + ' / mín ' + f2(d.minRange, 1) + '\nreps ' + curReps();
   }
 }
-$('#cam-arm').onclick = () => { const now = performance.now(); if (cam.counter && cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); } };
+$('#cam-arm').onclick = () => { const now = performance.now(); if (cam.counter && cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); REC.ev('manualArm'); } };
 function onRep(now) {
+  if (cam.nextEx || cam.phase === 'done') return;   // en la transición entre ejercicios no se cuenta
+  REC.ev('rep', cam.counter.count());
   if (cam.phase !== 'set') beginSet(now);
   const n = curReps(); $('#cam-reps').textContent = n;
   if (navigator.vibrate) navigator.vibrate(20);
@@ -748,39 +919,54 @@ function endSet(auto) {
     updateHud(); return;
   }
   const wv = $('#cam-weight').value;
-  const l = addLog(cam.ex, { weight: wv === '' ? null : +wv, reps, rir: null, restS: cam.pendingRest, auto: true });
+  const l = addLog(cam.ex, { weight: wv === '' ? null : +wv, reps, rir: null, restS: cam.pendingRest, auto: true, detected: cam.counter.count(), adj: cam.adj, recId: REC.id() });
+  REC.ev('setEnd', { logId: l.id, detected: cam.counter.count(), adj: cam.adj, reps, auto });
   cam.lastSaved = l;
   $('#cam-lastreps').value = reps; $('#cam-lastreps').disabled = false;
   $('#cam-rir').style.visibility = 'visible';
   rirChips($('#cam-rir'), null, (v) => { if (cam.lastSaved) { cam.lastSaved.rir = v; save(); } });
   const tr = cam.counter.typicalRange();
-  if (reps >= 3 && tr) { S.rom[cam.ex.id] = S.rom[cam.ex.id] ? S.rom[cam.ex.id] * 0.5 + tr * 0.5 : tr; save(); }
+  const romStore = S.settings.mode === 'sensor' ? S.romS : S.rom;
+  if (reps >= 3 && tr) { romStore[cam.ex.id] = romStore[cam.ex.id] ? romStore[cam.ex.id] * 0.5 + tr * 0.5 : tr; save(); }
   if (reps >= 2 && cam.counter.armPose) { const old = S.poses[cam.ex.id]; S.poses[cam.ex.id] = C.blendPose(old, cam.counter.armPose, old ? 0.3 : 1); save(); }
   cam.counter = newCounter(cam.ex); cam.searchSince = now; cam.hintT = now; cam.gateState = 'search';
   cam.adj = 0; cam.manualT = null; cam.pendingRest = null;
   cam.restStart = last; cam.restBeeped = false; cam.warned = false; cam.lastCount = null; cam.phase = 'rest'; $('#rest').hidden = false; setStatus(null);
-  updateHud(); tickRest(now);
+  cam.restTarget = cam.ex.rest; cam.nextEx = null; $('#rest-next').hidden = true;
   const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
   if (done >= pl) {
-    const list = C.PLAN.filter((x) => x.day === cam.ex.day); const nx = list[list.indexOf(cam.ex) + 1];
-    toast('Ejercicio completo' + (nx ? '. Sigue: ' + nx.name : '. ¡Sesión terminada!'));
-    say(numWord(reps) + ' repeticiones. Ejercicio completo.' + (nx ? ' Sigue ' + nx.name + '.' : ' Sesión terminada, buen trabajo.'), true);
+    const nx = cam.guided ? nextInQueue() : (() => { const list = C.PLAN.filter((x) => x.day === cam.ex.day); return list[list.indexOf(cam.ex) + 1]; })();
+    if (cam.guided && nx) {
+      // descanso de transición: tiempo para preparar el siguiente ejercicio
+      cam.nextEx = nx; cam.restTarget = Math.max(nx.rest, 120);
+      $('#rest-next').hidden = false; $('#rest-next-name').textContent = nx.name; $('#rest-next-tip').textContent = nx.equip + ' · ' + setupTip(nx);
+      say(repsWord(reps) + '. Ejercicio completo. Sigue ' + nx.name + '. Prepara ' + nx.equip.toLowerCase() + '. Tienes ' + restWords(cam.restTarget) + '.', true);
+    } else if (cam.guided) {
+      const totalSets = S.logs.filter((x) => x.date === todayYmd()).length;
+      say(repsWord(reps) + '. Entrenamiento terminado. Hiciste ' + numWord(totalSets) + ' series. Buen trabajo.', true);
+      toast('¡Entrenamiento terminado!'); $('#rest').hidden = true; cam.phase = 'done';
+    } else {
+      toast('Ejercicio completo' + (nx ? '. Sigue: ' + nx.name : '. ¡Sesión terminada!'));
+      say(repsWord(reps) + '. Ejercicio completo.' + (nx ? ' Sigue ' + nx.name + '.' : ' Sesión terminada, buen trabajo.'), true);
+    }
   } else {
     toast('Serie ' + l.set + ' guardada: ' + reps + ' reps');
-    say('Serie ' + numWord(l.set) + ', ' + numWord(reps) + ' repeticiones. Descansa ' + restWords(cam.ex.rest) + '.', true);
+    say('Serie ' + numWord(l.set) + ', ' + repsWord(reps) + '. Descansa ' + restWords(cam.ex.rest) + '.', true);
   }
+  updateHud(); if (cam.phase === 'rest') tickRest(now);
 }
 function tickRest(now) {
-  const target = cam.ex.rest, el = (now - cam.restStart) / 1000, left = target - el;
+  const target = cam.restTarget || cam.ex.rest, el = (now - cam.restStart) / 1000, left = target - el;
   const r = $('#rest');
   r.classList.toggle('over', left < 0);
   $('#rest-time').textContent = (left < 0 ? '+' : '') + fmtClock(Math.abs(left));
-  $('#rest-sub').textContent = left < 0 ? 'A la siguiente serie' : 'Descanso · objetivo ' + fmtRest(target);
+  $('#rest-sub').textContent = left < 0 ? (cam.nextEx ? 'Al siguiente ejercicio' : 'A la siguiente serie') : (cam.nextEx ? 'Prepárate' : 'Descanso · objetivo ' + fmtRest(target));
   $('#rest-arc').setAttribute('stroke-dashoffset', String(628.3 * Math.min(1, Math.max(0, el / target))));
   const pw = S.settings.prewarn;
   if (pw > 3 && !cam.warned && left <= pw && left > 3) { cam.warned = true; say('Quedan ' + numWord(Math.round(pw)) + ' segundos. Prepárate.', true); beep(660, 0.12); if (navigator.vibrate) navigator.vibrate(80); }
   const sec = Math.ceil(left);
   if (left > 0 && sec <= 3 && cam.lastCount !== sec) { cam.lastCount = sec; say(numWord(sec), true); beep(660, 0.1); }
+  if (left <= 0 && cam.nextEx) { restAlarm(); switchExercise(cam.nextEx); return; }
   if (left <= 0 && !cam.restBeeped) {
     cam.restBeeped = true; restAlarm();
     const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
@@ -809,6 +995,8 @@ function say(text, interrupt) {
 }
 const NUM = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
 const numWord = (n) => NUM[n] || String(n);
+const repsWord = (n) => (n === 1 ? 'una repetición' : numWord(n) + ' repeticiones');
+const seriesWord = (n) => (n === 1 ? 'una serie' : numWord(n) + ' series');
 function beep(freq, dur) {
   if (!S.settings.sound || !audioCtx) return;
   try { const t = audioCtx.currentTime, o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = freq; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t + dur + 0.02); } catch (e) {}
@@ -820,8 +1008,8 @@ function restAlarm() {
   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   try { const t = audioCtx.currentTime; [0, 0.25].forEach((d) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.4, t + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.2); o.connect(g).connect(audioCtx.destination); o.start(t + d); o.stop(t + d + 0.22); }); } catch (e) {}
 }
-$('#cam-plus').onclick = () => { const now = performance.now(); if (cam.phase !== 'set') beginSet(now); cam.adj++; cam.manualT = now; $('#cam-reps').textContent = curReps(); say(numWord(curReps()), true); };
-$('#cam-minus').onclick = () => { if (curReps() > 0) { cam.adj--; cam.manualT = performance.now(); } $('#cam-reps').textContent = curReps(); say('corregido, ' + numWord(curReps()), true); };
+$('#cam-plus').onclick = () => { const now = performance.now(); if (cam.phase !== 'set') beginSet(now); cam.adj++; cam.manualT = now; REC.ev('plus', curReps() + 1); $('#cam-reps').textContent = curReps(); say(numWord(curReps()), true); };
+$('#cam-minus').onclick = () => { if (curReps() > 0) { cam.adj--; cam.manualT = performance.now(); REC.ev('minus', curReps() - 1); } $('#cam-reps').textContent = curReps(); say('corregido, ' + numWord(curReps()), true); };
 $('#cam-end').onclick = () => { if (cam.phase === 'set') endSet(false); else toast('No hay una serie en curso'); };
 $('#cam-lastreps').addEventListener('change', () => { if (cam.lastSaved) { const v = +$('#cam-lastreps').value; if (v >= 0) { cam.lastSaved.reps = v; save(); toast('Reps corregidas'); } } });
 
@@ -872,6 +1060,7 @@ function loadSettings() {
   $('#set-minreps').value = String(S.settings.minReps); $('#set-facing').value = S.settings.facing; $('#set-sound').value = S.settings.sound ? '1' : '0';
   $('#set-voice').value = S.settings.voice ? '1' : '0'; $('#set-prewarn').value = String(S.settings.prewarn); $('#set-model').value = S.settings.model;
   $('#set-posture').value = S.settings.posture; $('#set-debug').value = S.settings.debug ? '1' : '0';
+  $('#set-record').value = S.settings.record ? '1' : '0'; $('#set-countmode').value = S.settings.countMode;
 }
 $('#set-start').onchange = (e) => { if (e.target.value) { S.startDate = C.ymd(C.mondayOf(C.parseYmd(e.target.value))); e.target.value = S.startDate; save(); renderToday(); } };
 $('#set-autoend').onchange = (e) => { S.settings.autoEnd = +e.target.value; save(); };
@@ -889,10 +1078,75 @@ document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () 
   document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', String(x === t)));
   ['today', 'history', 'settings'].forEach((v) => { $('#view-' + v).hidden = v !== t.dataset.view; });
   if (t.dataset.view === 'history') renderHistory();
+  if (t.dataset.view === 'settings') renderRecInfo();
   if (t.dataset.view === 'today') renderToday();
   window.scrollTo(0, 0);
 }));
 document.addEventListener('visibilitychange', async () => { if (!document.hidden && !$('#cam').hidden && 'wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} } });
+
+// ---------- grabación de datos de movimiento ----------
+const REC = (() => {
+  const J = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+  let cur = null, lastT = 0, t0 = 0;
+  let dbp = null;
+  function db() {
+    if (dbp) return dbp;
+    dbp = new Promise((ok, ko) => { try { const r = indexedDB.open('repcam-rec', 1); r.onupgradeneeded = () => r.result.createObjectStore('s', { keyPath: 'id' }); r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); } catch (e) { ko(e); } });
+    return dbp;
+  }
+  async function tx(mode, fn) { const d = await db(); return new Promise((ok, ko) => { const t = d.transaction('s', mode); const st = t.objectStore('s'); const res = fn(st); t.oncomplete = () => ok(res && res.result !== undefined ? res.result : res); t.onerror = () => ko(t.error); }); }
+  return {
+    id: () => (cur ? cur.id : null),
+    start(ex, video) {
+      if (!S.settings.record) { cur = null; return; }
+      t0 = performance.now(); lastT = 0;
+      cur = { id: 'r' + Date.now().toString(36), startedAt: new Date().toISOString(), exId: ex.id, exName: ex.name, pattern: ex.pattern, metric: ex.metric,
+        startHigh: ex.startHigh, repMin: ex.repMin, repMax: ex.repMax, facing: S.settings.facing, model: S.settings.model, countMode: S.settings.countMode,
+        video: [video.videoWidth, video.videoHeight], ua: navigator.userAgent, joints: J, frames: [], events: [] };
+    },
+    frame(now, raw, q, state) {
+      if (!cur || now - lastT < 66) return; lastT = now;
+      const row = [Math.round(now - t0), Math.round((q || 0) * 100), state === 'armed' ? 1 : 0];
+      if (raw) for (const i of J) { const p = raw[i]; row.push(Math.round(p.x * 1000), Math.round(p.y * 1000), Math.round((p.visibility ?? 0) * 100)); }
+      cur.frames.push(row);
+    },
+    ev(type, data) { if (cur) cur.events.push([Math.round(performance.now() - t0), type, data ?? null]); },
+    async stop() {
+      const c = cur; cur = null; if (!c || c.frames.length < 30) return;
+      c.durationS = Math.round((c.frames[c.frames.length - 1][0]) / 1000);
+      try {
+        await tx('readwrite', (st) => st.put(c));
+        const all = await tx('readonly', (st) => st.getAllKeys());
+        if (all.length > 40) await tx('readwrite', (st) => { all.sort().slice(0, all.length - 40).forEach((k) => st.delete(k)); });
+      } catch (e) { /* sin almacenamiento */ }
+    },
+    async list() { try { return await tx('readonly', (st) => st.getAll()); } catch (e) { return []; } },
+    async clear() { try { await tx('readwrite', (st) => st.clear()); } catch (e) {} },
+  };
+})();
+async function renderRecInfo() {
+  const all = await REC.list();
+  const frames = all.reduce((a, s) => a + s.frames.length, 0), mins = Math.round(all.reduce((a, s) => a + (s.durationS || 0), 0) / 60);
+  const exs = new Set(all.map((s) => s.exName)).size;
+  $('#rec-info').textContent = all.length ? all.length + ' grabaciones · ' + exs + ' ejercicios · ' + mins + ' min · ' + frames.toLocaleString('es-CL') + ' cuadros' : 'Aún no hay grabaciones. Entrena con la cámara y se guardarán solas.';
+}
+$('#set-record').onchange = (e) => { S.settings.record = e.target.value === '1'; save(); };
+$('#set-countmode').onchange = (e) => { S.settings.countMode = e.target.value; save(); };
+$('#btn-recclear').onclick = async () => { await REC.clear(); renderRecInfo(); toast('Grabaciones borradas'); };
+$('#btn-recexport').onclick = async () => {
+  const sessions = await REC.list();
+  if (!sessions.length) { toast('Aún no hay grabaciones'); return; }
+  const recIds = new Set(sessions.map((s) => s.id));
+  const payload = { app: 'RepCam', format: 1, exportedAt: new Date().toISOString(), settings: S.settings, rom: S.rom, poses: S.poses,
+    logs: S.logs.filter((l) => l.recId && recIds.has(l.recId)), sessions };
+  const json = JSON.stringify(payload);
+  let blob = new Blob([json], { type: 'application/json' }), name = 'RepCam_datos_' + todayYmd() + '.json';
+  try { if ('CompressionStream' in window) { blob = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).blob(); name += '.gz'; } } catch (e) {}
+  const file = new File([blob], name, { type: name.endsWith('.gz') ? 'application/gzip' : 'application/json' });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Datos RepCam' }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  downloadBlob(blob, name);
+  toast('Archivo descargado: ' + Math.round(blob.size / 1024) + ' KB');
+};
 
 loadSettings(); renderToday();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

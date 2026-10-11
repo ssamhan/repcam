@@ -295,7 +295,7 @@
   function RepCounter(ex, opts) {
     opts = opts || {};
     this.ex = ex; this.metric = ex.metric; this.gate = GATES[ex.pattern];
-    this.template = opts.template || null; this.tol = opts.tolerance || 1.0;
+    this.template = opts.template || null; this.tol = opts.tolerance || 1.0; this.always = !!opts.always;
     this.baseMin = MIN_RANGE[ex.metric] || 30;
     this.minRange = opts.typicalRange ? Math.max(this.baseMin, opts.typicalRange * 0.55) : this.baseMin;
     this.needed = [].concat.apply([], Object.values(jointsFor(ex.metric)));
@@ -337,7 +337,8 @@
       this.reason = !see ? 'camera' : 'posture';
       let ok = false, need = 700, by = null;
       if (see && v) {
-        if (this.template) {
+        if (this.always) { ok = true; need = 300; by = 'auto'; }
+        else if (this.template) {
           this.dist = poseDistance(this.smoothPose(), this.template);
           ok = this.dist <= this.tol && this.motion != null && this.motion < 0.15; need = 600; by = 'template';
         } else {
@@ -350,7 +351,7 @@
       else this.since = null;
     } else if (this.lastVisibleT == null || t - this.lastVisibleT > 1500) {
       this.state = 'search'; this.since = null; this.reason = 'camera'; out.disarmed = true;
-    } else if (this.template && v) {
+    } else if (this.template && v && !this.always) {
       // quieto pero lejos de la posición aprendida (descansando, estirando): deja de contar
       this.dist = poseDistance(this.smoothPose(), this.template);
       const away = this.dist > this.tol * 1.8 && this.motion != null && this.motion < 0.15;
@@ -386,6 +387,62 @@
     if (!b) return null;
     return b.startHigh ? 1 - b.norm : b.norm;
   };
+
+  // ---------- modo sensor: teléfono en el cuerpo ----------
+  // Cuenta reps por el giro del miembro donde va el teléfono: ángulo entre la gravedad actual
+  // y la gravedad en la posición de inicio. Funciona con cualquier orientación del teléfono.
+  const PLACEMENT = {
+    forearm: 'en el antebrazo, con una banda deportiva',
+    upperarm: 'en el brazo, a la altura del bíceps, con un brazalete',
+    thigh: 'en el muslo, con una banda o en el bolsillo de un short ajustado',
+    shin: 'en la pierna, junto al tobillo, con una banda',
+    torso: 'en el pecho, con una banda o bajo una camiseta ajustada',
+  };
+  const PATTERN_PLACE = { curl: 'forearm', pushdown: 'forearm', overhead: 'forearm', raise: 'forearm',
+    press_h: 'upperarm', press_v: 'upperarm', pull: 'upperarm', row: 'upperarm', facepull: 'upperarm', fly: 'upperarm',
+    squat: 'thigh', lunge: 'thigh', hipthrust: 'thigh', legext: 'shin', legcurl: 'shin', hinge: 'torso', crunch: 'torso', calf: null };
+
+  function SensorCounter(ex, opts) {
+    opts = opts || {};
+    this.ex = ex; this.place = PATTERN_PLACE[ex.pattern] || null;
+    this.minRange = opts.typicalRange ? Math.max(25, opts.typicalRange * 0.55) : 25;
+    this.tr = new SideTracker(this.minRange, false);
+    this.g = null; this.ref = null; this.gyro = null; this.stillSince = null;
+    this.state = 'search'; this.reps = 0; this.lastRep = null; this.maxRange = 0; this.armedBy = null; this.reason = 'posture';
+    this.lastPush = 0; this.angle = null; this.paused = false;
+  }
+  SensorCounter.prototype.update = function (t, ax, ay, az, rot) {
+    const out = { visible: true, rep: false, armed: false, disarmed: false };
+    if (ax == null) { out.state = this.state; out.reason = this.reason; return out; }
+    // gravedad filtrada (paso bajo) y velocidad de giro suavizada
+    if (!this.g) this.g = [ax, ay, az]; else { this.g[0] += 0.12 * (ax - this.g[0]); this.g[1] += 0.12 * (ay - this.g[1]); this.g[2] += 0.12 * (az - this.g[2]); }
+    if (rot != null) this.gyro = this.gyro == null ? rot : this.gyro + 0.2 * (rot - this.gyro);
+    const n = Math.hypot(this.g[0], this.g[1], this.g[2]) || 1, gn = [this.g[0] / n, this.g[1] / n, this.g[2] / n];
+    if (this.state === 'search') {
+      const still = this.gyro != null && this.gyro < 18 && !this.paused;
+      if (still) { if (this.stillSince == null) this.stillSince = t; if (t - this.stillSince > 900) { this.arm(t, 'still', gn); out.armed = true; } }
+      else this.stillSince = null;
+    }
+    if (this.state === 'armed' && t - this.lastPush >= 33) {
+      this.lastPush = t;
+      const d = Math.max(-1, Math.min(1, gn[0] * this.ref[0] + gn[1] * this.ref[1] + gn[2] * this.ref[2]));
+      this.angle = Math.acos(d) * 180 / Math.PI;
+      if (this.tr.push(t, this.angle)) { if (this.tr.range > this.maxRange) this.maxRange = this.tr.range; this.reps = this.tr.count; this.lastRep = t; out.rep = true; }
+    }
+    out.state = this.state; out.reason = this.reason;
+    return out;
+  };
+  SensorCounter.prototype.arm = function (t, by, gn) { this.state = 'armed'; this.armedBy = by; this.ref = gn.slice(); this.tr.reset(); this.tr.count = 0; this.base = this.reps; };
+  SensorCounter.prototype.manualArm = function (t) { if (this.state === 'armed' || !this.g) return false; const n = Math.hypot(this.g[0], this.g[1], this.g[2]) || 1; this.arm(t, 'manual', [this.g[0] / n, this.g[1] / n, this.g[2] / n]); return true; };
+  SensorCounter.prototype.count = function () { return this.reps; };
+  SensorCounter.prototype.lastRepT = function () { return this.lastRep; };
+  SensorCounter.prototype.firstMoveT = function () { return this.tr.firstMoveT; };
+  SensorCounter.prototype.typicalRange = function () { return this.maxRange || null; };
+  SensorCounter.prototype.holdProgress = function (t) { return this.state === 'search' && this.stillSince != null ? Math.min(1, (t - this.stillSince) / 900) : 0; };
+  SensorCounter.prototype.progress = function () { return this.tr.norm; };
+  SensorCounter.prototype.debug = function () { return { state: this.state, by: this.armedBy, dist: null, tol: null, motion: this.gyro, value: this.angle, range: this.tr.range, minRange: this.minRange, template: false }; };
+  // fuerza bruta del teléfono quieto (para detectar si alguien movió el trípode)
+  function bumpDetector() { let base = null; return function (ax, ay, az) { const m = Math.hypot(ax, ay, az); if (base == null) base = m; base += 0.02 * (m - base); return Math.abs(m - base) > 2.5; }; }
 
   // ---------- calendario ----------
   function mondayOf(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const wd = (x.getDay() + 6) % 7; x.setDate(x.getDate() - wd); return x; }
@@ -482,6 +539,7 @@
   const api = { PLAN: PLAN, DAYS: DAYS, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
-    jointsFor: jointsFor, detectionQuality: detectionQuality, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose };
+    jointsFor: jointsFor, detectionQuality: detectionQuality, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
+    SensorCounter: SensorCounter, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
