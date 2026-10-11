@@ -24,6 +24,15 @@ Modo "Teléfono en el cuerpo" (recomendado si la cámara cuenta mal)
 - Durante el descanso no cuenta (puedes caminar); se activa en los últimos 10 segundos.
 - Los gemelos no se pueden contar con el sensor: usa +1 / −1.
 
+Verte en grande (recomendado)
+- Duplica la pantalla del teléfono en el televisor: desliza el panel rápido → Smart View → elige el TV.
+- Gira el teléfono en horizontal y toca "Vista grande": ves tu imagen con el esqueleto y el contador gigante.
+- Así puedes usar la cámara TRASERA (detecta mucho mejor que la frontal) y igual verte.
+
+Discos
+- Ajustes → Mis discos y barras: registra tus discos (con foto si quieres) y tus barras.
+- En cada serie toca "Discos", marca los de un lado y la app calcula el total. También te dice qué poner para el peso sugerido.
+
 Consejos para que cuente bien
 - Teléfono fijo (apoyado en el rack o un trípode) a 2–3 m, con el cuerpo entero en cuadro.
 - De lado para sentadillas, press, remos y curls; de frente para elevaciones laterales, cruces y jalón.

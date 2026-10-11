@@ -186,6 +186,18 @@ input[type="date"], select { font-size: 16px; }
 .zoom { margin-left: auto; display: flex; align-items: center; gap: 8px; background: rgb(0 0 0 / .55); padding: 4px 10px; border-radius: 99px; font-size: 13px; }
 .zoom input { width: 120px; padding: 0; border: 0; background: none; accent-color: #ff8a1f; }
 .iconbtn[aria-pressed="false"] { opacity: .55; }
+.platebtn { align-self: flex-start; margin-left: 6px; font: 600 11px var(--body); letter-spacing: .04em; border: 1px solid currentColor; background: none; color: inherit; border-radius: 99px; padding: 1px 8px; cursor: pointer; }
+.plategrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.plate { position: relative; border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.plate img, .plate .disc { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.plate .disc { background: radial-gradient(circle, var(--bg) 18%, var(--muted) 20%, var(--surface-2) 60%); }
+.plate b { font-family: var(--display); font-size: 18px; }
+.plate .n { position: absolute; top: 4px; right: 6px; background: var(--accent); color: var(--accent-ink); border-radius: 99px; font-size: 12px; font-weight: 700; min-width: 20px; padding: 0 6px; text-align: center; }
+.ptotal { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ptotal b { font-family: var(--display); font-size: 34px; }
+.invrow { display: grid; grid-template-columns: 56px 1fr 1fr auto; gap: 8px; align-items: center; }
+.invrow img, .invrow .disc { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.invrow input { font-size: 16px; padding: 8px; }
 .diag { position: absolute; left: 14px; bottom: 140px; margin: 0; font: 12px/1.35 ui-monospace, Menlo, monospace; background: rgb(0 0 0 / .6); color: #fff; padding: 8px 10px; border-radius: 10px; z-index: 2; }
 .cam.sensor video, .cam.sensor canvas.ov, .cam.sensor #cam-flip, .cam.sensor #zoomwrap { display: none !important; }
 .cam.sensor .stage { background: radial-gradient(circle at 50% 40%, #1e242b, #0b0d10); }
@@ -200,6 +212,14 @@ input[type="date"], select { font-size: 16px; }
 .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 3px; }
 .seg button { border: 0; background: none; border-radius: 9px; padding: 8px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--fg); }
+.cam.clean .controls, .cam.clean .hud-tools, .cam.clean #cam-status { display: none !important; }
+.cam.clean .counter .reps { font-size: 160px; }
+@media (orientation: landscape) {
+  .cam { flex-direction: row; }
+  .cam .controls { width: min(340px, 40vw); overflow-y: auto; justify-content: center; padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 12px; }
+  .cam .ctlrow { grid-template-columns: 1fr 1fr; }
+  .cam .ctlrow #cam-end { grid-column: 1 / -1; }
+}
 .cam .controls { background: #0d0f12; padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 12px); display: flex; flex-direction: column; gap: 10px; }
 .lastset { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
 .lastset .chips { grid-column: 1 / -1; align-items: center; }
@@ -258,7 +278,7 @@ input[type="date"], select { font-size: 16px; }
         <h3>Detección con cámara</h3>
         <div class="setting"><span>Cerrar serie tras<small>Segundos sin repeticiones</small></span><select id="set-autoend"><option>5</option><option>8</option><option>10</option><option>15</option><option>20</option></select></div>
         <div class="setting"><span>Mínimo de reps<small>Movimientos sueltos con menos reps no se guardan solos</small></span><select id="set-minreps"><option>1</option><option>2</option><option>3</option></select></div>
-        <div class="setting"><span>Cámara<small>La trasera ve más campo y detecta mejor</small></span><select id="set-facing"><option value="environment">Trasera</option><option value="user">Frontal</option></select></div>
+        <div class="setting"><span>Cámara<small>La trasera detecta mejor. En la cámara, el botón de cámara recorre todas (gran angular o USB si el teléfono las entrega).</small></span><select id="set-facing"><option value="environment">Trasera</option><option value="user">Frontal</option></select></div>
         <div class="setting"><span>Tolerancia de postura<small>Cuánto puede diferir tu posición de inicio de la aprendida</small></span><select id="set-posture"><option value="strict">Estricta</option><option value="normal">Normal</option><option value="loose">Flexible</option></select></div>
         <div class="setting"><span>Datos técnicos<small>Muestra en la cámara lo que mide la app</small></span><select id="set-debug"><option value="0">Ocultos</option><option value="1">Visibles</option></select></div>
         <div class="setting"><span>Precisión del detector<small>Más precisión consume más batería. "Preciso" ayuda cuando estás lejos.</small></span><select id="set-model"><option value="lite">Rápido</option><option value="full">Equilibrado</option><option value="heavy">Preciso</option></select></div>
@@ -279,9 +299,19 @@ input[type="date"], select { font-size: 16px; }
         <input type="file" id="file-restore" accept="application/json,.json" hidden>
       </div>
       <div class="card">
+        <h3>Mis discos y barras</h3>
+        <p class="note">Registra tus discos una vez (con foto si quieres). Después, en cada serie tocas los discos que cargaste y la app calcula el peso.</p>
+        <div class="list" id="inv-plates"></div>
+        <div class="row"><button class="btn ghost small" id="inv-addplate">Agregar disco</button></div>
+        <div class="list" id="inv-bars"></div>
+        <div class="row"><button class="btn ghost small" id="inv-addbar">Agregar barra o mango</button></div>
+        <input type="file" id="inv-photo" accept="image/*" capture="environment" hidden>
+      </div>
+      <div class="card">
         <h3>Datos para mejorar el conteo</h3>
         <p class="note">Mientras usas la cámara, la app guarda solo los puntos del cuerpo que detecta (sin video ni fotos) y las correcciones que haces. Mándale el archivo a Claude para ajustar el conteo a tus ejercicios.</p>
         <div class="setting"><span>Grabar datos de movimiento</span><select id="set-record"><option value="1">Sí</option><option value="0">No</option></select></div>
+        <div class="setting"><span>Avisos de recorrido<small>Te dice "baja más", "estira completo"… si una rep queda corta</small></span><select id="set-romvoice"><option value="1">Activados</option><option value="0">Desactivados</option></select></div>
         <div class="setting"><span>Modo de conteo<small>"Contar siempre" no espera la posición de inicio</small></span><select id="set-countmode"><option value="pose">Con posición de inicio</option><option value="always">Contar siempre</option></select></div>
         <p class="note num" id="rec-info">—</p>
         <div class="row"><button class="btn primary small" id="btn-recexport">Exportar datos para Claude</button><button class="btn ghost small" id="btn-recclear">Borrar grabaciones</button></div>
@@ -316,6 +346,7 @@ input[type="date"], select { font-size: 16px; }
       <span class="qual" id="cam-qual">Buscando…</span>
       <button class="iconbtn" id="cam-voice" aria-label="Voz" aria-pressed="true" style="width:36px;height:36px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
       <button class="skipex" id="cam-skipex" hidden>Saltar ejercicio ›</button>
+      <button class="skipex" id="cam-clean" aria-pressed="false">Vista grande</button>
       <label class="zoom" id="zoomwrap" hidden>Zoom <input type="range" id="cam-zoom" aria-label="Zoom de la cámara"><b class="num" id="zoomval">1×</b></label>
     </div>
     <div class="counter"><div class="reps num" id="cam-reps">0</div><div class="lbl">reps<b class="num" id="cam-set">Serie 1/4</b></div></div>
@@ -335,7 +366,7 @@ input[type="date"], select { font-size: 16px; }
   </div>
   <div class="controls">
     <div class="lastset" id="lastset">
-      <label class="f">Peso kg<input id="cam-weight" type="number" inputmode="decimal" step="0.5" min="0"></label>
+      <label class="f">Peso kg <button class="platebtn" data-for="cam-weight" type="button">Discos</button><input id="cam-weight" type="number" inputmode="decimal" step="0.5" min="0"></label>
       <label class="f">Reps serie anterior<input id="cam-lastreps" type="number" inputmode="numeric" min="0" disabled></label>
       <div class="chips" id="cam-rir" aria-label="RIR de la última serie"></div>
     </div>
@@ -353,7 +384,7 @@ input[type="date"], select { font-size: 16px; }
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="m-title">
     <h3 id="m-title">Serie</h3>
     <div class="fields">
-      <label class="f">Peso (kg)<input id="m-weight" type="number" inputmode="decimal" step="0.5" min="0"></label>
+      <label class="f">Peso (kg) <button class="platebtn" data-for="m-weight" type="button">Discos</button><input id="m-weight" type="number" inputmode="decimal" step="0.5" min="0"></label>
       <label class="f">Reps<input id="m-reps" type="number" inputmode="numeric" min="0"></label>
     </div>
     <div><div class="note" style="margin-bottom:6px">RIR · repeticiones que te quedaban</div><div class="chips" id="m-rir"></div></div>
@@ -366,6 +397,18 @@ input[type="date"], select { font-size: 16px; }
   </div>
 </div>
 
+<!-- calculadora de discos -->
+<div class="modal" id="plates" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="p-title">
+    <h3 id="p-title">Carga de la barra</h3>
+    <label class="f">Barra o mango<select id="p-bar"></select></label>
+    <div class="note">Toca los discos de <b>un lado</b>; se suman a ambos lados.</div>
+    <div class="plategrid" id="p-grid"></div>
+    <div class="ptotal"><span class="num" id="p-side">Por lado: —</span><b class="num" id="p-total">0 kg</b></div>
+    <div class="note" id="p-suggest"></div>
+    <div class="row"><button class="btn ghost" id="p-clear">Vaciar</button><button class="btn ghost" id="p-cancel">Cancelar</button><button class="btn primary" id="p-use">Usar este peso</button></div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="core.js"></script>
@@ -378,8 +421,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 // ---------- estado persistente ----------
 const KEY = 'repcam.v1';
 function defaults() {
-  return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {},
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera' } };
+  return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {}, romRef: {}, romRefS: {}, plates: null, bars: null,
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true } };
 }
 let S = defaults();
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(defaults(), JSON.parse(raw)); S.settings = Object.assign(defaults().settings, S.settings); } catch (e) { /* sin almacenamiento */ }
@@ -622,9 +665,18 @@ async function loadLandmarker() {
 }
 async function startStream() {
   stopStream();
-  stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: S.settings.facing, width: { ideal: 960 }, height: { ideal: 720 } } });
+  const base = { width: { ideal: 1280 }, height: { ideal: 960 } };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: S.settings.camId ? Object.assign({ deviceId: { exact: S.settings.camId } }, base) : Object.assign({ facingMode: S.settings.facing }, base) });
+  } catch (e) {
+    if (!S.settings.camId) throw e;
+    S.settings.camId = null; save();
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: Object.assign({ facingMode: S.settings.facing }, base) });
+  }
   const v = $('#video'); v.srcObject = stream; await v.play();
-  $('#cam').classList.toggle('mirror', S.settings.facing === 'user');
+  const st = stream.getVideoTracks()[0].getSettings ? stream.getVideoTracks()[0].getSettings() : {};
+  const front = st.facingMode ? st.facingMode === 'user' : /front|frontal|user/i.test(stream.getVideoTracks()[0].label || '') || (!S.settings.camId && S.settings.facing === 'user');
+  $('#cam').classList.toggle('mirror', front);
   setupZoom();
 }
 function setupZoom() {
@@ -743,7 +795,7 @@ function onMotion(e) {
     c.paused = cam.phase === 'rest' && cam.restStart != null && (now - cam.restStart) / 1000 < cam.restTarget - Math.max(10, S.settings.prewarn || 0);
     const out = c.update(now, g.x, g.y, g.z, rot);
     cam.lastOut = out;
-    if (out.rep) onRep(now);
+    if (out.rep) onRep(now, out);
     if (out.armed && !cam.nextEx) { onArmed(now, false); }
   } else {
     // teléfono en trípode: si se mueve, la posición aprendida ya no sirve
@@ -782,12 +834,26 @@ function closeCam() {
   $('#cam').hidden = true; document.body.classList.remove('cam-open'); cam.ex = null; refreshAll();
 }
 $('#cam-close').onclick = closeCam;
-$('#cam-flip').onclick = async () => { S.settings.facing = S.settings.facing === 'user' ? 'environment' : 'user'; save(); try { await startStream(); } catch (e) { toast('No se pudo cambiar de cámara'); } };
+async function videoInputs() { try { return (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput'); } catch (e) { return []; } }
+function camLabel(d, i) {
+  const l = d.label || ''; const n = l.match(/camera2 (\d+)/);
+  const side = /front|frontal|user/i.test(l) ? 'frontal' : /back|rear|trasera|environment/i.test(l) ? 'trasera' : /usb|uvc|external|webcam/i.test(l) ? 'externa USB' : '';
+  return 'Cámara ' + (i + 1) + (side ? ' · ' + side : '') + (n ? ' (' + n[1] + ')' : '') + (!side && l ? ' · ' + l : '');
+}
+// recorre todas las cámaras que entrega el teléfono (frontal, trasera, gran angular, USB)
+$('#cam-flip').onclick = async () => {
+  const list = await videoInputs(); if (list.length < 2) { toast('Solo hay una cámara disponible'); return; }
+  const cur = stream && stream.getVideoTracks()[0].getSettings().deviceId;
+  const i = Math.max(0, list.findIndex((d) => d.deviceId === cur)); const nx = list[(i + 1) % list.length];
+  S.settings.camId = nx.deviceId; save();
+  try { await startStream(); toast(camLabel(nx, (i + 1) % list.length) + ' · ' + (stream.getVideoTracks()[0].getSettings().width || '') + '×' + (stream.getVideoTracks()[0].getSettings().height || '')); if (cam.counter && cam.counter.template) { cam.counter.template = null; } }
+  catch (e) { toast('No se pudo abrir esa cámara'); }
+};
 
 const TOL = { strict: 0.7, normal: 1.0, loose: 1.5 };
 function newCounter(ex) {
-  if (S.settings.mode === 'sensor') return new C.SensorCounter(ex, { typicalRange: S.romS[ex.id] });
-  return new C.RepCounter(ex, { typicalRange: S.rom[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1, always: S.settings.countMode === 'always' });
+  if (S.settings.mode === 'sensor') return new C.SensorCounter(ex, { typicalRange: S.romS[ex.id], romRef: S.romRefS[ex.id] });
+  return new C.RepCounter(ex, { typicalRange: S.rom[ex.id], romRef: S.romRef[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1, always: S.settings.countMode === 'always' });
 }
 function curReps() { return Math.max(0, (cam.counter ? cam.counter.count() : 0) + cam.adj); }
 function setStatus(t) { const s = $('#cam-status'); if (!t) { s.hidden = true; return; } s.textContent = t; s.hidden = false; }
@@ -835,7 +901,7 @@ function loop() {
     if (out.visible) cam.lastVisible = now;
     handleGate(out, now);
     REC.frame(now, raw, q, out.state);
-    if (out.rep) onRep(now);
+    if (out.rep) onRep(now, out);
     const pr = cam.counter.progress(); $('#rom').style.height = pr == null || out.state !== 'armed' ? '0%' : Math.round(Math.max(0, Math.min(1, pr)) * 100) + '%';
   }
   tick(now);
@@ -894,13 +960,30 @@ function handleGate(out, now) {
   }
 }
 $('#cam-arm').onclick = () => { const now = performance.now(); if (cam.counter && cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); REC.ev('manualArm'); } };
-function onRep(now) {
+// avisos de recorrido: 'deep' = no llegó al extremo del movimiento, 'full' = no volvió completo
+const ROMCUE = {
+  squat: { deep: 'baja más', full: 'párate completo' }, lunge: { deep: 'baja más', full: 'sube completo' },
+  hinge: { deep: 'baja más la barra', full: 'termina derecho' }, hipthrust: { deep: 'sube más la cadera', full: 'baja completo' },
+  press_h: { deep: 'baja hasta el pecho', full: 'estira completo' }, press_v: { deep: 'empuja hasta arriba', full: 'baja hasta la barbilla' },
+  pull: { deep: 'baja más la barra', full: 'estira arriba' }, row: { deep: 'lleva los codos más atrás', full: 'estira los brazos' },
+  curl: { deep: 'sube más', full: 'estira completo abajo' }, pushdown: { deep: 'estira completo', full: 'sube más los antebrazos' },
+  overhead: { deep: 'estira completo', full: 'baja más detrás de la cabeza' }, raise: { deep: 'sube hasta los hombros', full: 'baja completo' },
+  fly: { deep: 'junta más las manos', full: 'abre completo' }, facepull: { deep: 'tira más hacia la cara', full: 'estira los brazos' },
+  legcurl: { deep: 'dobla más la rodilla', full: 'estira la pierna' }, legext: { deep: 'estira completo', full: 'baja completo' },
+  calf: { deep: 'sube más los talones', full: 'baja completo los talones' }, crunch: { deep: 'enrolla más', full: 'vuelve arriba' },
+};
+function onRep(now, out) {
   if (cam.nextEx || cam.phase === 'done') return;   // en la transición entre ejercicios no se cuenta
   REC.ev('rep', cam.counter.count());
   if (cam.phase !== 'set') beginSet(now);
   const n = curReps(); $('#cam-reps').textContent = n;
   if (navigator.vibrate) navigator.vibrate(20);
-  say(n === cam.ex.repMax ? numWord(n) + ', tope del rango' : numWord(n), true);
+  let cue = '';
+  if (out && out.rom && S.settings.romVoice) {
+    const c = ROMCUE[cam.ex.pattern]; cue = c ? c[out.rom] : '';
+    cam.romMiss = (cam.romMiss || 0) + 1; REC.ev('rom', out.rom);
+  }
+  say(numWord(n) + (cue ? ', ' + cue : n === cam.ex.repMax ? ', tope del rango' : ''), true);
 }
 function beginSet(now) {
   if (cam.restStart != null) {
@@ -910,6 +993,8 @@ function beginSet(now) {
   cam.phase = 'set'; $('#rest').hidden = true; updateHud();
 }
 function endSet(auto) {
+  const dropped = cam.counter.finalize ? cam.counter.finalize() : false;
+  if (dropped) REC.ev('dropLast');
   const reps = curReps();
   const now = performance.now();
   const last = Math.max(cam.counter.lastRepT() || 0, cam.manualT || 0) || now;
@@ -925,6 +1010,14 @@ function endSet(auto) {
   $('#cam-lastreps').value = reps; $('#cam-lastreps').disabled = false;
   $('#cam-rir').style.visibility = 'visible';
   rirChips($('#cam-rir'), null, (v) => { if (cam.lastSaved) { cam.lastSaved.rir = v; save(); } });
+  const span = cam.counter.romSpan ? cam.counter.romSpan() : null;
+  if (span && reps >= 3) {
+    const store = S.settings.mode === 'sensor' ? S.romRefS : S.romRef, ref = store[cam.ex.id];
+    // la referencia solo se amplía (de a poco): es tu mejor recorrido
+    store[cam.ex.id] = ref ? { lo: Math.min(ref.lo, (ref.lo + span.lo) / 2), hi: Math.max(ref.hi, (ref.hi + span.hi) / 2) } : span;
+  }
+  const romNote = cam.romMiss >= 2 ? ' ' + numWord(cam.romMiss) + ' con recorrido corto.' : '';
+  cam.romMiss = 0;
   const tr = cam.counter.typicalRange();
   const romStore = S.settings.mode === 'sensor' ? S.romS : S.rom;
   if (reps >= 3 && tr) { romStore[cam.ex.id] = romStore[cam.ex.id] ? romStore[cam.ex.id] * 0.5 + tr * 0.5 : tr; save(); }
@@ -940,7 +1033,7 @@ function endSet(auto) {
       // descanso de transición: tiempo para preparar el siguiente ejercicio
       cam.nextEx = nx; cam.restTarget = Math.max(nx.rest, 120);
       $('#rest-next').hidden = false; $('#rest-next-name').textContent = nx.name; $('#rest-next-tip').textContent = nx.equip + ' · ' + setupTip(nx);
-      say(repsWord(reps) + '. Ejercicio completo. Sigue ' + nx.name + '. Prepara ' + nx.equip.toLowerCase() + '. Tienes ' + restWords(cam.restTarget) + '.', true);
+      say((dropped ? 'Descarto la última. ' : '') + repsWord(reps) + '.' + romNote + ' Ejercicio completo. Sigue ' + nx.name + '. Prepara ' + nx.equip.toLowerCase() + '. Tienes ' + restWords(cam.restTarget) + '.', true);
     } else if (cam.guided) {
       const totalSets = S.logs.filter((x) => x.date === todayYmd()).length;
       say(repsWord(reps) + '. Entrenamiento terminado. Hiciste ' + numWord(totalSets) + ' series. Buen trabajo.', true);
@@ -951,7 +1044,7 @@ function endSet(auto) {
     }
   } else {
     toast('Serie ' + l.set + ' guardada: ' + reps + ' reps');
-    say('Serie ' + numWord(l.set) + ', ' + repsWord(reps) + '. Descansa ' + restWords(cam.ex.rest) + '.', true);
+    say((dropped ? 'Descarto la última, fue al soltar. ' : '') + 'Serie ' + numWord(l.set) + ', ' + repsWord(reps) + '.' + romNote + ' Descansa ' + restWords(cam.ex.rest) + '.', true);
   }
   updateHud(); if (cam.phase === 'rest') tickRest(now);
 }
@@ -1061,11 +1154,12 @@ function loadSettings() {
   $('#set-voice').value = S.settings.voice ? '1' : '0'; $('#set-prewarn').value = String(S.settings.prewarn); $('#set-model').value = S.settings.model;
   $('#set-posture').value = S.settings.posture; $('#set-debug').value = S.settings.debug ? '1' : '0';
   $('#set-record').value = S.settings.record ? '1' : '0'; $('#set-countmode').value = S.settings.countMode;
+  $('#set-romvoice').value = S.settings.romVoice ? '1' : '0';
 }
 $('#set-start').onchange = (e) => { if (e.target.value) { S.startDate = C.ymd(C.mondayOf(C.parseYmd(e.target.value))); e.target.value = S.startDate; save(); renderToday(); } };
 $('#set-autoend').onchange = (e) => { S.settings.autoEnd = +e.target.value; save(); };
 $('#set-minreps').onchange = (e) => { S.settings.minReps = +e.target.value; save(); };
-$('#set-facing').onchange = (e) => { S.settings.facing = e.target.value; save(); };
+$('#set-facing').onchange = (e) => { S.settings.facing = e.target.value; S.settings.camId = null; save(); };
 $('#set-sound').onchange = (e) => { S.settings.sound = e.target.value === '1'; save(); };
 $('#set-voice').onchange = (e) => { S.settings.voice = e.target.value === '1'; save(); if (S.settings.voice) say('Voz activada', true); };
 $('#set-posture').onchange = (e) => { S.settings.posture = e.target.value; save(); };
@@ -1078,7 +1172,7 @@ document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () 
   document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', String(x === t)));
   ['today', 'history', 'settings'].forEach((v) => { $('#view-' + v).hidden = v !== t.dataset.view; });
   if (t.dataset.view === 'history') renderHistory();
-  if (t.dataset.view === 'settings') renderRecInfo();
+  if (t.dataset.view === 'settings') { renderRecInfo(); renderInventory(); }
   if (t.dataset.view === 'today') renderToday();
   window.scrollTo(0, 0);
 }));
@@ -1130,6 +1224,7 @@ async function renderRecInfo() {
   const exs = new Set(all.map((s) => s.exName)).size;
   $('#rec-info').textContent = all.length ? all.length + ' grabaciones · ' + exs + ' ejercicios · ' + mins + ' min · ' + frames.toLocaleString('es-CL') + ' cuadros' : 'Aún no hay grabaciones. Entrena con la cámara y se guardarán solas.';
 }
+$('#set-romvoice').onchange = (e) => { S.settings.romVoice = e.target.value === '1'; save(); };
 $('#set-record').onchange = (e) => { S.settings.record = e.target.value === '1'; save(); };
 $('#set-countmode').onchange = (e) => { S.settings.countMode = e.target.value; save(); };
 $('#btn-recclear').onclick = async () => { await REC.clear(); renderRecInfo(); toast('Grabaciones borradas'); };
@@ -1147,6 +1242,89 @@ $('#btn-recexport').onclick = async () => {
   downloadBlob(blob, name);
   toast('Archivo descargado: ' + Math.round(blob.size / 1024) + ' KB');
 };
+
+// ---------- discos ----------
+const DEF_PLATES = [{ kg: 20, n: 2 }, { kg: 10, n: 2 }, { kg: 5, n: 4 }, { kg: 2.5, n: 4 }, { kg: 1.25, n: 2 }];
+const DEF_BARS = [{ name: 'Barra olímpica', kg: 20 }, { name: 'Barra EZ', kg: 8 }, { name: 'Smith (barra)', kg: 10 }, { name: 'Mango de mancuerna', kg: 2 }, { name: 'Sin barra (polea)', kg: 0 }];
+function plates() { if (!S.plates) S.plates = DEF_PLATES.map((p) => Object.assign({}, p)); return S.plates; }
+function bars() { if (!S.bars) S.bars = DEF_BARS.map((b) => Object.assign({}, b)); return S.bars; }
+function fmtNum(x) { return (Math.round(x * 100) / 100).toString().replace('.', ','); }
+function renderInventory() {
+  $('#inv-plates').innerHTML = plates().slice().sort((a, b) => b.kg - a.kg).map((p) => {
+    const i = plates().indexOf(p);
+    return '<div class="invrow">' + (p.img ? '<img src="' + p.img + '" alt="">' : '<span class="disc"></span>') +
+      '<label class="f">kg<input type="number" inputmode="decimal" step="0.25" data-pi="' + i + '" data-k="kg" value="' + p.kg + '"></label>' +
+      '<label class="f">Cantidad<input type="number" inputmode="numeric" data-pi="' + i + '" data-k="n" value="' + p.n + '"></label>' +
+      '<div class="row" style="flex-direction:column;gap:4px"><button class="btn ghost small" data-photo="' + i + '">Foto</button><button class="btn ghost small" data-delp="' + i + '">Quitar</button></div></div>';
+  }).join('');
+  $('#inv-bars').innerHTML = bars().map((b, i) => '<div class="invrow" style="grid-template-columns:1fr 90px auto"><input data-bi="' + i + '" data-k="name" value="' + esc(b.name) + '"><input type="number" inputmode="decimal" step="0.5" data-bi="' + i + '" data-k="kg" value="' + b.kg + '"><button class="btn ghost small" data-delb="' + i + '">Quitar</button></div>').join('');
+}
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset.pi != null) { plates()[+t.dataset.pi][t.dataset.k] = Math.max(0, +t.value); save(); }
+  if (t.dataset.bi != null) { bars()[+t.dataset.bi][t.dataset.k] = t.dataset.k === 'kg' ? Math.max(0, +t.value) : t.value; save(); }
+});
+let photoFor = null;
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-photo],[data-delp],[data-delb]'); if (!b) return;
+  if (b.dataset.photo != null) { photoFor = +b.dataset.photo; $('#inv-photo').click(); }
+  if (b.dataset.delp != null) { plates().splice(+b.dataset.delp, 1); save(); renderInventory(); }
+  if (b.dataset.delb != null) { bars().splice(+b.dataset.delb, 1); save(); renderInventory(); }
+});
+$('#inv-addplate').onclick = () => { plates().push({ kg: 15, n: 2 }); save(); renderInventory(); };
+$('#inv-addbar').onclick = () => { bars().push({ name: 'Nueva barra', kg: 10 }); save(); renderInventory(); };
+$('#inv-photo').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f || photoFor == null) return;
+  try {
+    const img = await createImageBitmap(f); const sz = 120, c = document.createElement('canvas'); c.width = c.height = sz;
+    const m = Math.min(img.width, img.height); c.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, sz, sz);
+    plates()[photoFor].img = c.toDataURL('image/jpeg', 0.7); save(); renderInventory();
+  } catch (err) { toast('No se pudo leer la foto'); }
+  e.target.value = '';
+};
+// calculadora
+let pTarget = null, pLoad = {};
+function barForEx(ex) {
+  const eq = (ex.equip + ' ' + ex.name).toLowerCase(), bs = bars();
+  const find = (re) => bs.findIndex((b) => re.test(b.name.toLowerCase()));
+  let i = /ez/.test(eq) ? find(/ez/) : /smith/.test(eq) ? find(/smith/) : /mancuerna/.test(eq) ? find(/mancuerna/) : /polea|landmine/.test(eq) ? find(/polea|sin barra/) : find(/ol[ií]mpica|barra/);
+  return Math.max(0, i);
+}
+function plateTotal() { const bar = bars()[+$('#p-bar').value] || { kg: 0 }; let side = 0; for (const k in pLoad) side += +k * pLoad[k]; return { bar: bar.kg, side, total: bar.kg + 2 * side }; }
+// carga sugerida por lado para un peso objetivo (con los discos que tienes)
+function suggestLoad(target, barKg) {
+  let side = (target - barKg) / 2; if (side < 0) return null;
+  const out = []; const ps = plates().slice().sort((a, b) => b.kg - a.kg);
+  for (const p of ps) { let n = Math.floor(p.n / 2); while (n > 0 && side >= p.kg - 1e-6) { out.push(p.kg); side -= p.kg; n--; } }
+  return { plates: out, rest: side };
+}
+function renderPlates() {
+  $('#p-grid').innerHTML = plates().slice().sort((a, b) => b.kg - a.kg).map((p) => {
+    const n = pLoad[p.kg] || 0;
+    return '<button class="plate" data-kg="' + p.kg + '" type="button">' + (n ? '<span class="n num">' + n + '</span>' : '') + (p.img ? '<img src="' + p.img + '" alt="">' : '<span class="disc"></span>') + '<b class="num">' + fmtNum(p.kg) + '</b></button>';
+  }).join('');
+  const t = plateTotal();
+  $('#p-side').textContent = 'Por lado: ' + fmtNum(t.side) + ' kg';
+  $('#p-total').textContent = fmtNum(t.total) + ' kg';
+  const ex = cam.ex || curEx; const rw = ex ? rec(ex).weight : null;
+  if (rw) { const sg = suggestLoad(rw, t.bar); $('#p-suggest').textContent = sg ? 'Para ' + fmtNum(rw) + ' kg pon por lado: ' + (sg.plates.length ? sg.plates.map(fmtNum).join(' + ') : 'nada') + (sg.rest > 0.01 ? ' (faltan ' + fmtNum(sg.rest * 2) + ' kg)' : '') : ''; }
+  else $('#p-suggest').textContent = '';
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.platebtn'); if (!b) return; e.preventDefault();
+  pTarget = b.dataset.for; pLoad = {};
+  const ex = cam.ex || curEx;
+  $('#p-bar').innerHTML = bars().map((x, i) => '<option value="' + i + '">' + esc(x.name) + ' · ' + fmtNum(x.kg) + ' kg</option>').join('');
+  $('#p-bar').value = String(ex ? barForEx(ex) : 0);
+  renderPlates(); $('#plates').hidden = false;
+});
+$('#p-grid').addEventListener('click', (e) => { const b = e.target.closest('[data-kg]'); if (!b) return; const kg = +b.dataset.kg, p = plates().find((x) => x.kg === kg); const max = Math.floor((p ? p.n : 2) / 2); pLoad[kg] = ((pLoad[kg] || 0) + 1) > max ? 0 : (pLoad[kg] || 0) + 1; renderPlates(); });
+$('#p-bar').onchange = renderPlates;
+$('#p-clear').onclick = () => { pLoad = {}; renderPlates(); };
+$('#p-cancel').onclick = () => { $('#plates').hidden = true; };
+$('#p-use').onclick = () => { const t = plateTotal(); const inp = $('#' + pTarget); inp.value = t.total; inp.dispatchEvent(new Event('change')); $('#plates').hidden = true; };
+$('#cam-clean').onclick = () => { const on = !$('#cam').classList.contains('clean'); $('#cam').classList.toggle('clean', on); $('#cam-clean').setAttribute('aria-pressed', String(on)); };
+document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
 loadSettings(); renderToday();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

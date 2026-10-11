@@ -110,9 +110,14 @@
   SideTracker.prototype.reset = function () {
     this.buf = []; this.ema = null; this.count = 0; this.visitedOpp = false;
     this.lastRepT = null; this.firstMoveT = null; this.zone = 'none'; this.lastSeenT = null; this.range = 0; this.norm = null; this.frames = 0; this.okFrames = 0;
+    this.raw = []; this.cycLo = Infinity; this.cycHi = -Infinity; this.repLo = null; this.repHi = null; this.midTime = 0; this.repMid = 0; this.lastPushT = null;
   };
   SideTracker.prototype.push = function (t, v) {
+    // mediana de 5 muestras: elimina los saltos sueltos del detector antes de suavizar
+    this.raw.push(v); if (this.raw.length > 5) this.raw.shift();
+    const srt = this.raw.slice().sort(function (a, b) { return a - b; }); v = srt[srt.length >> 1];
     this.ema = this.ema == null ? v : this.ema + 0.45 * (v - this.ema);
+    if (this.ema < this.cycLo) this.cycLo = this.ema; if (this.ema > this.cycHi) this.cycHi = this.ema;
     this.lastSeenT = t;
     const buf = this.buf; buf.push({ t: t, v: this.ema });
     while (buf.length && t - buf[0].t > 8000) buf.shift();
@@ -121,15 +126,24 @@
     this.range = mx - mn;
     if (this.range < this.minRange) { this.zone = 'still'; this.norm = null; return false; }
     const n = (this.ema - mn) / this.range; this.norm = n;
-    const zone = n < 0.3 ? 'low' : n > 0.7 ? 'high' : 'mid';
+    // zona de inicio: último 25 % del recorrido; zona opuesta: pasar la mitad del recorrido
+    // (así también cuenta las reps cortas, para poder avisar "baja más")
+    const sn = this.startHigh ? n : 1 - n;          // 1 = posición de inicio, 0 = extremo opuesto
+    const zone = sn > 0.75 ? 'start' : sn < 0.5 ? 'opp' : 'mid';
+    // tiempo lejos de ambos extremos (ni arriba ni abajo): típico al apoyar la barra o soltar el agarre
+    if (this.lastPushT != null && sn > 0.2 && sn < 0.75) this.midTime += t - this.lastPushT;
+    this.lastPushT = t;
     this.zone = zone;
-    const start = this.startHigh ? 'high' : 'low', opp = this.startHigh ? 'low' : 'high';
+    const start = 'start', opp = 'opp';
     if (zone !== start && this.firstMoveT == null) this.firstMoveT = t;
     if (zone === opp) this.visitedOpp = true;
     if (zone === start && this.visitedOpp) {
       this.visitedOpp = false;
       // filtra rebotes: una rep dura al menos 0,5 s
-      if (this.lastRepT == null || t - this.lastRepT > 500) { this.count++; this.lastRepT = t; return true; }
+      if (this.lastRepT == null || t - this.lastRepT > 500) {
+        this.count++; this.lastRepT = t; this.repLo = this.cycLo; this.repHi = this.cycHi; this.cycLo = this.ema; this.cycHi = this.ema;
+        this.repMid = this.midTime; this.midTime = 0; return true;
+      }
     }
     return false;
   };
@@ -286,6 +300,40 @@
     return out;
   }
 
+  // ---------- ritmo de la serie ----------
+  // Rechaza "reps" demasiado rápidas para tu ritmo (saltos del detector) y, al cerrar la serie,
+  // la última si llegó después de una pausa (soltar la barra, bajar los brazos).
+  function median(a) { if (!a.length) return null; const b = a.slice().sort(function (x, y) { return x - y; }); return b[b.length >> 1]; }
+  function Rhythm() { this.times = []; }
+  Rhythm.prototype.accept = function (t, mid) {
+    this.mids = this.mids || [];
+    const n = this.times.length;
+    if (n) {
+      const iv = t - this.times[n - 1], ivs = this.intervals();
+      if (iv < 600) return false;
+      if (ivs.length >= 3 && iv < 0.45 * median(ivs)) return false;
+    }
+    this.times.push(t); this.mids.push(mid || 0); return true;
+  };
+  Rhythm.prototype.intervals = function () { const ts = this.times, o = []; for (let i = 1; i < ts.length; i++) o.push(ts[i] - ts[i - 1]); return o; };
+  Rhythm.prototype.trailingExtra = function () {
+    if (this.times.length < 4) return false;
+    const ivs = this.intervals(), last = ivs[ivs.length - 1], m = median(ivs.slice(0, -1));
+    // pausa larga Y quieto a medio camino (barra apoyada, brazos bajando) antes de la última
+    return last > 1.45 * m && (this.mids[this.mids.length - 1] || 0) > 1200;
+  };
+  // recorrido de la rep comparado con tu mejor recorrido en ese ejercicio
+  // devuelve null (bien), 'deep' (faltó llegar al extremo opuesto) o 'full' (faltó volver completo)
+  function romCheck(startHigh, lo, hi, ref) {
+    if (!ref || lo == null || hi == null) return null;
+    const span = ref.hi - ref.lo; if (span <= 0) return null;
+    const tol = Math.max(0.15 * span, 0.0001);
+    const shortLo = lo - ref.lo > tol, shortHi = ref.hi - hi > tol;
+    // el extremo opuesto al inicio es el "profundo"
+    const deepShort = startHigh ? shortLo : shortHi, fullShort = startHigh ? shortHi : shortLo;
+    return deepShort ? 'deep' : fullShort ? 'full' : null;
+  }
+
   // ---------- contador con posición de inicio ----------
   // Arma el conteo cuando reconoce la posición de inicio:
   //  - con posición aprendida: postura parecida a la aprendida, sostenida 0,6 s;
@@ -302,7 +350,8 @@
     // quietud: se mide con todo el cuerpo (hombros, codos, muñecas, caderas, rodillas, tobillos)
     this.body = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
     this.sides = { L: new SideTracker(this.minRange, ex.startHigh), R: new SideTracker(this.minRange, ex.startHigh), C: new SideTracker(this.minRange, ex.startHigh) };
-    this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0; this.lastRep = null;
+    this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0; this.lastRep = null; this.rejected = 0;
+    this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.lastRom = null; this.romLog = [];
     this.state = 'search'; this.since = null; this.reason = 'camera';
     this.motion = null; this.posBuf = []; this.recent = []; this.armPose = null; this.dist = null; this.armedBy = null;
   }
@@ -362,11 +411,25 @@
     if (this.state === 'armed' && see) {
       const vals = metricValues(this.metric, lm);
       for (const k in vals) { const s = this.sides[k]; if (s.push(t, vals[k]) && s.range > this.maxRange) this.maxRange = s.range; }
-      let best = 0; for (const k in this.sides) if (this.sides[k].count > best) best = this.sides[k].count;
-      if (this.base + best > this.reps) { this.reps = this.base + best; this.lastRep = t; out.rep = true; }
+      let best = 0, bs = null; for (const k in this.sides) if (this.sides[k].count > best) { best = this.sides[k].count; bs = this.sides[k]; }
+      if (this.base + best - this.rejected > this.reps) {
+        if (this.rhythm.accept(t, bs.repMid)) {
+          this.reps = this.base + best - this.rejected; this.lastRep = t; out.rep = true;
+          this.lastRom = { lo: bs.repLo, hi: bs.repHi }; if (bs.repLo != null) this.romLog.push(this.lastRom);
+          out.rom = romCheck(this.ex.startHigh, bs.repLo, bs.repHi, this.romRef || (this.romLog.length >= 4 ? this.romSpan() : null));
+        } else this.rejected++;
+      }
     }
     out.state = this.state; out.reason = this.reason;
     return out;
+  };
+  // al cerrar la serie: descarta la última rep si llegó tras una pausa
+  RepCounter.prototype.finalize = function () { if (this.rhythm.trailingExtra()) { this.reps--; this.rhythm.times.pop(); this.rhythm.mids.pop(); if (this.romLog) this.romLog.pop(); return true; } return false; };
+  RepCounter.prototype.romSpan = function () {
+    // el mejor recorrido de la serie (2º mejor extremo, para ignorar un salto aislado)
+    const L = this.romLog; if (L.length < 3) return null;
+    const lo = L.map(function (x) { return x.lo; }).sort(function (a, b) { return a - b; }), hi = L.map(function (x) { return x.hi; }).sort(function (a, b) { return b - a; });
+    return { lo: lo[1], hi: hi[1] };
   };
   RepCounter.prototype.holdProgress = function (t) {
     if (this.state !== 'search' || this.since == null) return 0;
@@ -410,6 +473,7 @@
     this.g = null; this.ref = null; this.gyro = null; this.stillSince = null;
     this.state = 'search'; this.reps = 0; this.lastRep = null; this.maxRange = 0; this.armedBy = null; this.reason = 'posture';
     this.lastPush = 0; this.angle = null; this.paused = false;
+    this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.romLog = []; this.lastRom = null;
   }
   SensorCounter.prototype.update = function (t, ax, ay, az, rot) {
     const out = { visible: true, rep: false, armed: false, disarmed: false };
@@ -427,7 +491,13 @@
       this.lastPush = t;
       const d = Math.max(-1, Math.min(1, gn[0] * this.ref[0] + gn[1] * this.ref[1] + gn[2] * this.ref[2]));
       this.angle = Math.acos(d) * 180 / Math.PI;
-      if (this.tr.push(t, this.angle)) { if (this.tr.range > this.maxRange) this.maxRange = this.tr.range; this.reps = this.tr.count; this.lastRep = t; out.rep = true; }
+      if (this.tr.push(t, this.angle)) {
+        if (this.rhythm.accept(t, this.tr.repMid)) {
+          if (this.tr.range > this.maxRange) this.maxRange = this.tr.range; this.reps++; this.lastRep = t; out.rep = true;
+          this.lastRom = { lo: this.tr.repLo, hi: this.tr.repHi }; this.romLog.push(this.lastRom);
+          out.rom = romCheck(false, this.tr.repLo, this.tr.repHi, this.romRef || (this.romLog.length >= 4 ? this.romSpan() : null));
+        }
+      }
     }
     out.state = this.state; out.reason = this.reason;
     return out;
@@ -435,6 +505,8 @@
   SensorCounter.prototype.arm = function (t, by, gn) { this.state = 'armed'; this.armedBy = by; this.ref = gn.slice(); this.tr.reset(); this.tr.count = 0; this.base = this.reps; };
   SensorCounter.prototype.manualArm = function (t) { if (this.state === 'armed' || !this.g) return false; const n = Math.hypot(this.g[0], this.g[1], this.g[2]) || 1; this.arm(t, 'manual', [this.g[0] / n, this.g[1] / n, this.g[2] / n]); return true; };
   SensorCounter.prototype.count = function () { return this.reps; };
+  SensorCounter.prototype.finalize = RepCounter.prototype.finalize;
+  SensorCounter.prototype.romSpan = RepCounter.prototype.romSpan;
   SensorCounter.prototype.lastRepT = function () { return this.lastRep; };
   SensorCounter.prototype.firstMoveT = function () { return this.tr.firstMoveT; };
   SensorCounter.prototype.typicalRange = function () { return this.maxRange || null; };
@@ -540,6 +612,6 @@
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
     jointsFor: jointsFor, detectionQuality: detectionQuality, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
-    SensorCounter: SensorCounter, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
+    SensorCounter: SensorCounter, Rhythm: Rhythm, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
