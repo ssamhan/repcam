@@ -40,12 +40,28 @@ Discos
 - Ajustes → Mis discos y barras: registra tus discos (con foto si quieres) y tus barras.
 - En cada serie toca "Discos", marca los de un lado y la app calcula el total. También te dice qué poner para el peso sugerido.
 
+Conteo automático (v14)
+- La app mide entre 6 y 12 señales a la vez (ángulo del codo/rodilla en 2D y 3D por lado, altura de muñecas, codos, caderas…) y cuenta por consenso de las señales limpias. Si una se pierde o tiene ruido, las otras siguen contando.
+- Probado con tus 23 series reales del 11-oct: error total bajó de 37 a 17 reps; el jalón de las 20:07 pasó de 1 a 16 (real ≈17).
+- Ajustes → Cámara y postura → Motor de conteo: Automático (consenso, recomendado), Automático (mejor señal) o Clásico.
+- Con "Diagnóstico" activado, el panel muestra qué señal va contando y cuántas son confiables.
+- Si el detector te pierde por más de 15 s, se reinicia solo.
+
+Dónde poner la cámara (sala de 2,60 × 3,70 m)
+- Teléfono en la esquina del lado corto, a 1,7 m, inclinado hacia abajo, con gran angular (0,6x): ves rack y banca completos. La app corrige la inclinación con el sensor de gravedad.
+- Mejor ángulo: de lado o en diagonal (45°) para banca, press militar, remo, sentadilla, peso muerto y curl. De frente solo para elevaciones laterales y cruces.
+- Jalón y polea: cámara de lado a la polea, a 2–2,5 m, que se vean manos y codos arriba.
+- Que se vean siempre las muñecas y codos (ejercicios de brazos) o caderas, rodillas y tobillos (piernas). Sin cosas tapando: barra de la máquina, discos, toallas.
+- Luz: de frente o desde arriba, nunca una ventana detrás tuyo (contraluz = esqueleto que salta). Ropa que contraste con la pared.
+
 Consejos para que cuente bien
 - Teléfono fijo (apoyado en el rack o un trípode) a 2–3 m, con el cuerpo entero en cuadro.
-- De lado para sentadillas, press, remos y curls; de frente para elevaciones laterales, cruces y jalón.
 - Primera serie de cada ejercicio: ponte en la posición de inicio y quédate quieto 1–2 segundos (o toca "Estoy en posición"). La app guarda esa postura.
 - Siguientes series: solo cuenta cuando vuelves a esa postura. Si cambiaste el ángulo de la cámara, usa "Volver a aprender" en el ejercicio.
 - Para mejorar el conteo: entrena normal con la cámara y corrige con +1 / −1 cuando se equivoque. Después ve a Ajustes → "Exportar datos para Claude" y adjunta ese archivo en el chat con Claude.
 - Si cuenta mal, usa +1 / −1 o corrige las reps después. El peso siempre lo ingresas tú.
 
 Tus datos quedan solo en el teléfono. Haz una "Copia de seguridad" en Historial de vez en cuando.
+
+Para desarrolladores
+- tools/bateria.js: reproduce un export ("Exportar datos para Claude") con el contador y compara contra las reps contadas a mano (tabla REF). Uso: node tools/bateria.js RepCam_datos.json.gz [single|leader]

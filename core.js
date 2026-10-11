@@ -104,12 +104,13 @@
   // Aprende el rango del movimiento en una ventana móvil; una rep = salir de la zona inicial,
   // llegar a la zona opuesta y volver.
   function SideTracker(minRange, startHigh) {
-    this.minRange = minRange; this.startHigh = startHigh;
+    this.minRange = minRange; this.startHigh0 = startHigh; this.startHigh = startHigh;
     this.reset();
   }
   SideTracker.prototype.reset = function () {
     this.buf = []; this.ema = null; this.count = 0; this.visitedOpp = false;
     this.lastRepT = null; this.firstMoveT = null; this.zone = 'none'; this.lastSeenT = null; this.range = 0; this.norm = null; this.frames = 0; this.okFrames = 0;
+    this.startHigh = this.startHigh0; this.first = null;
     this.raw = []; this.cycLo = Infinity; this.cycHi = -Infinity; this.repLo = null; this.repHi = null; this.midTime = 0; this.repMid = 0; this.lastPushT = null;
   };
   SideTracker.prototype.push = function (t, v) {
@@ -117,6 +118,7 @@
     this.raw.push(v); if (this.raw.length > 5) this.raw.shift();
     const srt = this.raw.slice().sort(function (a, b) { return a - b; }); v = srt[srt.length >> 1];
     this.ema = this.ema == null ? v : this.ema + 0.45 * (v - this.ema);
+    if (this.first == null) this.first = this.ema;
     if (this.ema < this.cycLo) this.cycLo = this.ema; if (this.ema > this.cycHi) this.cycHi = this.ema;
     this.lastSeenT = t;
     const buf = this.buf; buf.push({ t: t, v: this.ema });
@@ -126,6 +128,8 @@
     this.range = mx - mn;
     if (this.range < this.minRange) { this.zone = 'still'; this.norm = null; return false; }
     const n = (this.ema - mn) / this.range; this.norm = n;
+    // dirección desconocida: la posición al armar (primera muestra) es la de inicio
+    if (this.startHigh == null) this.startHigh = this.first == null ? n > 0.5 : (this.first - mn) / this.range > 0.5;
     // zona de inicio: último 25 % del recorrido; zona opuesta: pasar la mitad del recorrido
     // (así también cuenta las reps cortas, para poder avisar "baja más")
     const sn = this.startHigh ? n : 1 - n;          // 1 = posición de inicio, 0 = extremo opuesto
@@ -480,6 +484,118 @@
     return out;
   }
 
+  // ---------- banco de señales: varias candidatas, cuenta con la más limpia ----------
+  // Cada ejercicio produce entre 6 y 12 señales (ángulos 2D/3D por lado, alturas de muñeca/cadera/hombro…).
+  // Se elige en vivo la de mejor relación movimiento/ruido; así una señal mala (p. ej. el codo en 3D) no bloquea el conteo.
+  const ARM_PATTERNS = ['press_h', 'press_v', 'pull', 'row', 'curl', 'pushdown', 'overhead', 'facepull', 'raise', 'fly'];
+  function signalCandidates(pattern, lm, wl, vis, up) {
+    const o = {}, v = function (i) { return vis(i) && lm && lm[i]; };
+    const mid2 = function (a, b) { return v(a) && v(b) ? { x: (lm[a].x + lm[b].x) / 2, y: (lm[a].y + lm[b].y) / 2 } : v(a) ? lm[a] : v(b) ? lm[b] : null; };
+    const sh = mid2(11, 12), hp = mid2(23, 24), an = mid2(27, 28), kn = mid2(25, 26);
+    const T = sh && hp ? dist(sh, hp) : null;
+    const put = function (k, val, unit) { if (val != null && !isNaN(val)) o[k] = { v: val, u: unit }; };
+    const arm = ARM_PATTERNS.indexOf(pattern) >= 0;
+    ['L', 'R'].forEach(function (k) {
+      const S = SIDE[k];
+      if (arm) {
+        if (v(S.sh) && v(S.el) && v(S.wr)) put('codo2D-' + k, angle(lm[S.sh], lm[S.el], lm[S.wr]), 'deg');
+        if (wl && v(S.sh) && v(S.el) && v(S.wr)) put('codo3D-' + k, angle3(wl[S.sh], wl[S.el], wl[S.wr]), 'deg');
+        if (pattern === 'raise' || pattern === 'facepull') {
+          if (v(S.hip) && v(S.sh) && v(S.el)) put('hombro2D-' + k, angle(lm[S.hip], lm[S.sh], lm[S.el]), 'deg');
+          if (wl && v(S.hip) && v(S.sh) && v(S.el)) put('hombro3D-' + k, angle3(wl[S.hip], wl[S.sh], wl[S.el]), 'deg');
+        }
+      } else {
+        if (v(S.hip) && v(S.kn) && v(S.an)) put('rodilla2D-' + k, angle(lm[S.hip], lm[S.kn], lm[S.an]), 'deg');
+        if (wl && v(S.hip) && v(S.kn) && v(S.an)) put('rodilla3D-' + k, angle3(wl[S.hip], wl[S.kn], wl[S.an]), 'deg');
+        if (v(S.sh) && v(S.hip) && v(S.kn)) put('cadera2D-' + k, angle(lm[S.sh], lm[S.hip], lm[S.kn]), 'deg');
+        if (wl && v(S.sh) && v(S.hip) && v(S.kn)) put('cadera3D-' + k, angle3(wl[S.sh], wl[S.hip], wl[S.kn]), 'deg');
+      }
+    });
+    if (T) {
+      if (arm) {
+        const wr = mid2(15, 16); if (wr && sh) put('muñecaY', (wr.y - sh.y) / T, 'ratio');
+        const el = mid2(13, 14); if (el && sh) put('codoY', (el.y - sh.y) / T, 'ratio');
+        if (pattern === 'fly' && v(15) && v(16) && v(11) && v(12)) { const sw = dist(lm[11], lm[12]); if (sw) put('manos2D', dist(lm[15], lm[16]) / sw, 'ratio'); }
+      } else {
+        if (hp && an) put('caderaY', (an.y - hp.y) / T, 'ratio');
+        if (sh && an) put('hombroY', (an.y - sh.y) / T, 'ratio');
+        if (pattern === 'legcurl' || pattern === 'legext') { if (an && kn) put('tobilloY', (an.y - kn.y) / T, 'ratio'); }
+        if (pattern === 'calf') { const hv = metricValues('heel', lm); for (const k in hv) put('talon-' + k, hv[k], 'ratio'); }
+      }
+    }
+    if (wl && up) {
+      const rf = romFeatures(wl, vis, up);
+      if (arm && rf.wristH != null) put('muñeca3D', rf.wristH, 'm');
+      if (!arm && rf.hipKneeH != null) put('caderaRodilla3D', rf.hipKneeH, 'm');
+    }
+    return o;
+  }
+  const MIN_AMP = { deg: 30, ratio: 0.18, m: 0.12 };
+  function Candidate(unit) {
+    this.unit = unit; this.tr = new SideTracker(MIN_AMP[unit], null); this.buf = []; this.snr = 0; this.amp = 0;
+  }
+  Candidate.prototype.push = function (t, x) {
+    const b = this.buf; b.push({ t: t, x: x }); while (b.length && t - b[0].t > 6000) b.shift();
+    if (b.length > 12) {
+      const xs = b.map(function (p) { return p.x; }).sort(function (a, c) { return a - c; });
+      this.amp = xs[Math.floor(xs.length * 0.92)] - xs[Math.floor(xs.length * 0.08)];
+      // ruido: segunda diferencia (el movimiento suave casi no la tiene; el temblor del detector sí)
+      const d2 = []; for (let i = 2; i < b.length; i++) d2.push(Math.abs(b[i].x - 2 * b[i - 1].x + b[i - 2].x));
+      d2.sort(function (a, c) { return a - c; });
+      const noise = d2[d2.length >> 1] + MIN_AMP[this.unit] * 0.01;
+      this.snr = this.amp >= MIN_AMP[this.unit] ? this.amp / noise : 0;
+    }
+    return this.tr.push(t, x);
+  };
+  function SignalBank(mode) { this.c = {}; this.leader = null; this.offset = 0; this.count = 0; this.leaderReps = 0; this.mode = mode || 'consensus'; }
+  SignalBank.prototype.score = function (k) {
+    const c = this.c[k]; if (!c) return 0;
+    const pres = c.pres.length ? c.pres.reduce(function (a, b) { return a + b; }, 0) / c.pres.length : 0;
+    c.coverage = pres;
+    return c.snr * pres * pres;          // señales con huecos (muñeca fuera de cuadro, tapada) pierden
+  };
+  SignalBank.prototype.push = function (t, cands) {
+    for (const k in cands) {
+      const c = this.c[k] || (this.c[k] = new Candidate(cands[k].u));
+      c.pres = c.pres || [];
+      c.push(t, cands[k].v);
+    }
+    for (const k in this.c) { const c = this.c[k]; c.pres = c.pres || []; c.pres.push(k in cands ? 1 : 0); if (c.pres.length > 120) c.pres.shift(); }
+    let best = null, bs = 0;
+    for (const k in this.c) { const sc = this.score(k); if (sc > bs) { bs = sc; best = k; } }
+    const cur = this.leader, cs = cur ? this.score(cur) : 0;
+    if (best && best !== cur) {
+      // con un líder que ya cuenta bien, solo se cambia si se pierde (huecos) o queda muy por debajo
+      const locked = cur && this.leaderReps >= 2 && this.c[cur].coverage > 0.6 && cs > bs * 0.4;
+      const better = !cur || cs === 0 || bs > cs * 1.35;
+      if (!locked && better) {
+        if (this.newLeader !== best) { this.newLeader = best; this.newLeaderT = t; }
+        else if (!cur || cs === 0 || t - this.newLeaderT > 1200) {
+          this.offset = this.count - this.c[best].tr.count; this.leader = best; this.newLeader = null; this.leaderReps = 0;
+        }
+      } else this.newLeader = null;
+    }
+    if (this.mode === 'consensus') {
+      // consenso: mediana de las cuentas de todas las señales buenas (presentes y con buen movimiento/ruido)
+      const top = bs;
+      const counts = [];
+      for (const k in this.c) { const c = this.c[k]; if ((c.coverage || 0) >= 0.7 && this.score(k) >= top * 0.3 && c.amp >= MIN_AMP[c.unit]) counts.push(c.tr.count); }
+      if (counts.length) {
+        counts.sort(function (x, y) { return x - y; });
+        const m = counts.length % 2 ? counts[counts.length >> 1] : Math.floor((counts[counts.length / 2 - 1] + counts[counts.length / 2]) / 2);
+        if (m > this.count) { this.count = m; this.leaderReps++; return true; }
+      }
+      return false;
+    }
+    if (this.leader) {
+      const n = this.c[this.leader].tr.count + this.offset;
+      if (n > this.count) { this.count = n; this.leaderReps++; return true; }
+    }
+    return false;
+  };
+  SignalBank.prototype.leaderTracker = function () { return this.leader ? this.c[this.leader].tr : null; };
+  SignalBank.prototype.firstMoveT = function () { const tr = this.leaderTracker(); return tr ? tr.firstMoveT : null; };
+
   // ---------- ritmo de la serie ----------
   // Rechaza "reps" demasiado rápidas para tu ritmo (saltos del detector) y, al cerrar la serie,
   // la última si llegó después de una pausa (soltar la barra, bajar los brazos).
@@ -531,12 +647,12 @@
     this.body = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
     this.sides = { L: new SideTracker(this.minRange, ex.startHigh), R: new SideTracker(this.minRange, ex.startHigh), C: new SideTracker(this.minRange, ex.startHigh) };
     this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0; this.lastRep = null; this.rejected = 0;
-    this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.lastRom = null; this.romLog = []; this.romSlack = opts.romSlack ?? 1; this.relTol = opts.relTol ?? 0.25; this.cyc = null;
+    this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.lastRom = null; this.romLog = []; this.romSlack = opts.romSlack ?? 1; this.relTol = opts.relTol ?? 0.25; this.cyc = null; this.multi = opts.multi !== false; this.use3dRom = opts.use3dRom !== false; this.bankMode = opts.bankMode || 'consensus'; this.bank = new SignalBank(this.bankMode);
     this.state = 'search'; this.since = null; this.reason = 'camera';
     this.expected = EXPECTED[ex.id] || null; this.posture = new PostureTracker(); this.postureNow = null;
     this.motion = null; this.posBuf = []; this.recent = []; this.armPose = null; this.dist = null; this.armedBy = null;
   }
-  RepCounter.prototype.resetTrackers = function () { this.base = this.reps; for (const k in this.sides) this.sides[k].reset(); };
+  RepCounter.prototype.resetTrackers = function () { this.base = this.reps; for (const k in this.sides) this.sides[k].reset(); this.bank = new SignalBank(this.bankMode); };
   RepCounter.prototype.arm = function (t, by) {
     this.state = 'armed'; this.armedBy = by; this.since = null; this.awaySince = null; this.badPostSince = null; this.cyc = null; this.resetTrackers();
     this.armPose = meanPose(this.recent.slice(-15).map(function (r) { return r.v; }));
@@ -602,7 +718,26 @@
       else this.awaySince = null;
     }
 
-    if (this.state === 'armed' && see) {
+    if (this.state === 'armed' && see && this.multi) {
+      // modo profesional: banco de señales, cuenta con la más limpia
+      const vis2 = ctx3 && ctx3.vis ? ctx3.vis : function (i) { return lm[i] && (lm[i].visibility ?? 1) >= VIS; };
+      if (ctx3 && ctx3.wl) {
+        const rf = romFeatures(ctx3.wl, ctx3.vis, ctx3.up), c = this.cyc || (this.cyc = { min: {}, max: {} });
+        for (const k in rf) { const v0 = rf[k]; if (v0 == null || isNaN(v0)) continue; if (c.min[k] == null || v0 < c.min[k]) c.min[k] = v0; if (c.max[k] == null || v0 > c.max[k]) c.max[k] = v0; }
+      }
+      const cands = signalCandidates(this.ex.pattern, lm, ctx3 && ctx3.wl, vis2, ctx3 && ctx3.up);
+      if (this.bank.push(t, cands)) {
+        if (this.rhythm.accept(t, (this.bank.leaderTracker() || {}).repMid)) {
+          const lt = this.bank.leaderTracker();
+          this.reps++; this.lastRep = t; out.rep = true;
+          this.lastRom = lt ? { lo: lt.repLo, hi: lt.repHi } : null; if (this.lastRom && this.lastRom.lo != null) this.romLog.push(this.lastRom);
+          const r3 = this.cyc && this.use3dRom ? romCheck3D(this.ex.pattern, this.cyc, this.romSlack) : undefined;
+          out.rom = r3 !== undefined ? r3 : (lt ? romCheck(lt.startHigh, lt.repLo, lt.repHi, this.romLog.length >= 4 ? this.romSpan() : null, this.relTol) : null);
+          out.rom3d = r3 !== undefined; this.cyc = null;
+        } else this.cyc = null;
+      }
+      out.signal = this.bank.leader;
+    } else if (this.state === 'armed' && see) {
       const use3 = ctx3 && ctx3.wl;
       const vals = use3 ? metricValues3D(this.metric, ctx3.wl, ctx3.vis, ctx3.up) : metricValues(this.metric, lm);
       if (use3) {   // extremos del ciclo actual para evaluar el recorrido en vivo
@@ -637,16 +772,23 @@
     const need = this.template ? 600 : 1000; return Math.min(1, (t - this.since) / need);
   };
   RepCounter.prototype.debug = function () {
+    if (this.multi) {
+      const lt = this.bank.leaderTracker(), bk = this.bank; let nAll = 0, nSig = 0;
+      for (const k in bk.c) { nAll++; const c = bk.c[k]; if ((c.coverage || 0) >= 0.7 && c.amp >= MIN_AMP[c.unit]) nSig++; }
+      return { state: this.state, by: this.armedBy, dist: this.dist, tol: this.tol, motion: this.motion, value: lt ? lt.ema : null, range: lt ? lt.range : null, minRange: lt ? lt.minRange : null, template: !!this.template, signal: bk.leader, nSig: nSig, nAll: nAll };
+    }
     let b = null; for (const k in this.sides) { const s = this.sides[k]; if (s.ema != null && (!b || s.range > b.range)) b = s; }
     return { state: this.state, by: this.armedBy, dist: this.dist, tol: this.tol, motion: this.motion, value: b ? b.ema : null, range: b ? b.range : null, minRange: this.minRange, template: !!this.template };
   };
   RepCounter.prototype.count = function () { return this.reps; };
   RepCounter.prototype.lastRepT = function () { return this.lastRep; };
   RepCounter.prototype.firstMoveT = function () {
+    if (this.multi) return this.bank.firstMoveT();
     let t = null; for (const k in this.sides) { const s = this.sides[k]; if (s.firstMoveT != null && (t == null || s.firstMoveT < t)) t = s.firstMoveT; } return t;
   };
   RepCounter.prototype.typicalRange = function () { return this.maxRange || null; };
   RepCounter.prototype.progress = function () {
+    if (this.multi) { const tr = this.bank.leaderTracker(); return tr && tr.norm != null ? (tr.startHigh ? 1 - tr.norm : tr.norm) : null; }
     let b = null; for (const k in this.sides) { const s = this.sides[k]; if (s.norm != null && (!b || s.range > b.range)) b = s; }
     if (!b) return null;
     return b.startHigh ? 1 - b.norm : b.norm;
@@ -813,6 +955,6 @@
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
     jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, posture3DFeatures: posture3DFeatures, classifyPosture3D: classifyPosture3D, upVector: upVector, metricValues3D: metricValues3D, romFeatures: romFeatures, postureVector: postureVector, classifyWithProfile: classifyWithProfile, romCheck3D: romCheck3D, ROM3D: ROM3D, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
-    SensorCounter: SensorCounter, Rhythm: Rhythm, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
+    SensorCounter: SensorCounter, Rhythm: Rhythm, SignalBank: SignalBank, signalCandidates: signalCandidates, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -252,7 +252,7 @@ input[type="date"], select { font-size: 16px; }
 <body>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v13</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v14</small></div>
     <div class="weekchip" id="weekchip"></div>
   </header>
 
@@ -317,6 +317,7 @@ input[type="date"], select { font-size: 16px; }
         <p class="note">La inclinación de la cámara la mide el sensor del teléfono; la altura y la distancia quedan guardadas con tus datos para ajustar los consejos y el análisis.</p>
         <div class="setting"><span>Validar postura<small>No cuenta si la postura no corresponde al ejercicio</small></span><select id="set-checkpost"><option value="1">Sí</option><option value="0">No</option></select></div>
         <div class="setting"><span>Exigencia de recorrido<small>Cuánto debe bajar o estirar cada rep para no recibir aviso</small></span><select id="set-romstrict"><option value="strict">Estricta</option><option value="normal">Normal</option><option value="soft">Suave</option></select></div>
+        <div class="setting"><span>Motor de conteo<small>Automático: usa varias señales (codo, muñeca, cadera…) y cuenta por consenso</small></span><select id="set-engine"><option value="consensus">Automático (consenso)</option><option value="leader">Automático (mejor señal)</option><option value="classic">Clásico (un ángulo)</option></select></div>
         <p class="note" id="calib-info">—</p>
         <div class="row"><button class="btn primary small" id="btn-calib">Calibrar posturas (1 min)</button><button class="btn ghost small" id="btn-calibclear">Borrar calibración</button></div>
       </div>
@@ -445,7 +446,7 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="core.js?v=13"></script>
+<script src="core.js?v=14"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -456,7 +457,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const KEY = 'repcam.v1';
 function defaults() {
   return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {}, romRef: {}, romRefS: {}, plates: null, bars: null, postureProfile: null,
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0, rotMode: 'auto', camHeight: 1.7, camDist: 3, checkPosture: true, romStrict: 'normal' } };
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0, rotMode: 'auto', camHeight: 1.7, camDist: 3, checkPosture: true, romStrict: 'normal', engine: 'consensus' } };
 }
 let S = defaults();
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(defaults(), JSON.parse(raw)); S.settings = Object.assign(defaults().settings, S.settings); } catch (e) { /* sin almacenamiento */ }
@@ -691,7 +692,7 @@ async function loadLandmarker() {
   if (landmarker) { try { landmarker.close(); } catch (e) {} landmarker = null; }
   const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/vision_bundle.mjs');
   const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/wasm');
-  const opts = (delegate) => ({ baseOptions: { modelAssetPath: modelUrl(S.settings.model), delegate }, runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
+  const opts = (delegate) => ({ baseOptions: { modelAssetPath: modelUrl(S.settings.model), delegate }, runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: 0.35, minPosePresenceConfidence: 0.35, minTrackingConfidence: 0.4 });
   try { landmarker = await vision.PoseLandmarker.createFromOptions(files, opts('GPU')); }
   catch (e) { landmarker = await vision.PoseLandmarker.createFromOptions(files, opts('CPU')); }
   landmarkerModel = S.settings.model;
@@ -913,7 +914,7 @@ const TOL = { strict: 0.7, normal: 1.0, loose: 1.5 };
 function newCounter(ex) {
   if (S.settings.mode === 'sensor') return new C.SensorCounter(ex, { typicalRange: S.romS[ex.id], romRef: S.romRefS[ex.id] });
   const SL = { strict: 0, normal: 1, soft: 2 }[S.settings.romStrict] ?? 1, RT = { strict: 0.15, normal: 0.25, soft: 0.35 }[S.settings.romStrict] ?? 0.25;
-  const rc = new C.RepCounter(ex, { romSlack: SL, relTol: RT, typicalRange: S.rom[ex.id], romRef: S.romRef[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1, always: S.settings.countMode === 'always' });
+  const rc = new C.RepCounter(ex, { romSlack: SL, relTol: RT, typicalRange: S.rom[ex.id], romRef: S.romRef[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1, always: S.settings.countMode === 'always', multi: S.settings.engine !== 'classic', bankMode: S.settings.engine === 'leader' ? 'leader' : 'consensus' });
   if (!S.settings.checkPosture) rc.expected = null;   // validación de postura desactivada
   return rc;
 }
@@ -1037,6 +1038,13 @@ function loop() {
     const src = rotSource(v);
     const res = landmarker.detectForVideo(src, now);
     raw = res.landmarks && res.landmarks[0];
+    // vigilante: si no te ve por 15 s, reinicia el detector (a veces queda "pegado" sin re-detectar)
+    if (raw) cam.seenT = now; else if (cam.seenT == null) cam.seenT = now;
+    else if (now - cam.seenT > 15000 && !cam.reloading && now - (cam.reloadT || 0) > 30000) {
+      cam.reloading = true; cam.reloadT = now; REC.ev('detectorReset');
+      const old = landmarker; landmarker = null; landmarkerModel = null; try { old.close(); } catch (e) {}
+      loadLandmarker().catch(() => {}).finally(() => { cam.reloading = false; cam.seenT = performance.now(); });
+    }
     const W = src.videoWidth || src.width, H = src.videoHeight || src.height;
     cam.frameW = W; cam.frameH = H;
     if (raw) lmPx = raw.map((p) => ({ x: p.x * W, y: p.y * H, visibility: p.visibility }));
@@ -1150,7 +1158,7 @@ function handleGate(out, now) {
     cam.dbgT = now; const d = cam.counter.debug(), f2 = (x, n) => x == null || !isFinite(x) ? '—' : x.toFixed(n);
     const BY = { still: 'por quietud', template: 'por posición aprendida', manual: 'manual', pattern: 'por patrón' };
     $('#diag').textContent = (d.state === 'armed' ? 'contando ' + (BY[d.by] || '') : 'buscando posición') + '\nposición ' + (d.template ? f2(d.dist, 2) + ' / ' + d.tol : 'sin aprender') +
-      '\nmovimiento ' + f2(d.motion, 3) + '\nvalor ' + f2(d.value, 1) + '  rango ' + f2(d.range, 1) + ' / mín ' + f2(d.minRange, 1) + '\nreps ' + curReps() + '\ngiro ' + currentRot() + '° (' + (S.settings.rotMode === 'manual' ? 'manual' : lastMotion ? 'gravedad' : 'sin sensor') + ') · postura ' + (cam.counter.postureNow || '—') + (cam.p3 ? '\n3D tronco ' + Math.round(cam.p3.torso ?? NaN) + '° muslo ' + Math.round(cam.p3.thigh ?? NaN) + '° canilla ' + Math.round(cam.p3.shin ?? NaN) + '° · z ' + (S.settings.zSign == null ? 'calibrando' : S.settings.zSign) : '');
+      '\nmovimiento ' + f2(d.motion, 3) + '\nvalor ' + f2(d.value, 1) + '  rango ' + f2(d.range, 1) + ' / mín ' + f2(d.minRange, 1) + (d.signal ? '\nseñal ' + d.signal + ' (' + d.nSig + ' buenas de ' + d.nAll + ')' : '') + '\nreps ' + curReps() + '\ngiro ' + currentRot() + '° (' + (S.settings.rotMode === 'manual' ? 'manual' : lastMotion ? 'gravedad' : 'sin sensor') + ') · postura ' + (cam.counter.postureNow || '—') + (cam.p3 ? '\n3D tronco ' + Math.round(cam.p3.torso ?? NaN) + '° muslo ' + Math.round(cam.p3.thigh ?? NaN) + '° canilla ' + Math.round(cam.p3.shin ?? NaN) + '° · z ' + (S.settings.zSign == null ? 'calibrando' : S.settings.zSign) : '');
   }
 }
 $('#cam-arm').onclick = () => { const now = performance.now(); if (cam.counter && cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); REC.ev('manualArm'); } };
@@ -1350,7 +1358,7 @@ function loadSettings() {
   $('#set-record').value = S.settings.record ? '1' : '0'; $('#set-countmode').value = S.settings.countMode;
   $('#set-romvoice').value = S.settings.romVoice ? '1' : '0'; $('#set-rotmode').value = S.settings.rotMode || 'auto';
   $('#set-camh').value = S.settings.camHeight; $('#set-camd').value = S.settings.camDist;
-  $('#set-checkpost').value = S.settings.checkPosture ? '1' : '0'; $('#set-romstrict').value = S.settings.romStrict || 'normal';
+  $('#set-checkpost').value = S.settings.checkPosture ? '1' : '0'; $('#set-romstrict').value = S.settings.romStrict || 'normal'; $('#set-engine').value = S.settings.engine || 'consensus';
 }
 $('#set-start').onchange = (e) => { if (e.target.value) { S.startDate = C.ymd(C.mondayOf(C.parseYmd(e.target.value))); e.target.value = S.startDate; save(); renderToday(); } };
 $('#set-autoend').onchange = (e) => { S.settings.autoEnd = +e.target.value; save(); };
@@ -1429,6 +1437,7 @@ $('#set-camh').onchange = (e) => { S.settings.camHeight = +e.target.value; save(
 $('#set-camd').onchange = (e) => { S.settings.camDist = +e.target.value; save(); };
 $('#set-checkpost').onchange = (e) => { S.settings.checkPosture = e.target.value === '1'; save(); };
 $('#set-romstrict').onchange = (e) => { S.settings.romStrict = e.target.value; save(); };
+$('#set-engine').onchange = (e) => { S.settings.engine = e.target.value; save(); };
 $('#btn-calib').onclick = () => { S.settings.mode = 'camera'; save(); startCalibration(); };
 $('#btn-calibclear').onclick = () => { S.postureProfile = null; save(); renderCalibInfo(); toast('Calibración borrada'); };
 $('#set-rotmode').onchange = (e) => { S.settings.rotMode = e.target.value; save(); };
@@ -1548,7 +1557,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 13;
+const APP_VER = 14;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
