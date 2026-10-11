@@ -252,7 +252,7 @@ input[type="date"], select { font-size: 16px; }
 <body>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v10</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v11</small></div>
     <div class="weekchip" id="weekchip"></div>
   </header>
 
@@ -289,6 +289,7 @@ input[type="date"], select { font-size: 16px; }
         <div class="setting"><span>Cerrar serie tras<small>Segundos sin repeticiones</small></span><select id="set-autoend"><option>5</option><option>8</option><option>10</option><option>15</option><option>20</option></select></div>
         <div class="setting"><span>Mínimo de reps<small>Movimientos sueltos con menos reps no se guardan solos</small></span><select id="set-minreps"><option>1</option><option>2</option><option>3</option></select></div>
         <div class="setting"><span>Cámara<small>La trasera detecta mejor. En la cámara, el botón de cámara recorre todas (gran angular o USB si el teléfono las entrega).</small></span><select id="set-facing"><option value="environment">Trasera</option><option value="user">Frontal</option></select></div>
+        <div class="setting"><span>Orientación de la imagen<small>Automática usa el sensor de gravedad del teléfono</small></span><select id="set-rotmode"><option value="auto">Automática</option><option value="manual">Manual (botón Girar)</option></select></div>
         <div class="setting"><span>Tolerancia de postura<small>Cuánto puede diferir tu posición de inicio de la aprendida</small></span><select id="set-posture"><option value="strict">Estricta</option><option value="normal">Normal</option><option value="loose">Flexible</option></select></div>
         <div class="setting"><span>Datos técnicos<small>Muestra en la cámara lo que mide la app</small></span><select id="set-debug"><option value="0">Ocultos</option><option value="1">Visibles</option></select></div>
         <div class="setting"><span>Precisión del detector<small>Más precisión consume más batería. "Preciso" ayuda cuando estás lejos.</small></span><select id="set-model"><option value="lite">Rápido</option><option value="full">Equilibrado</option><option value="heavy">Preciso</option></select></div>
@@ -434,7 +435,7 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="core.js?v=10"></script>
+<script src="core.js?v=11"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -445,7 +446,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const KEY = 'repcam.v1';
 function defaults() {
   return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {}, romRef: {}, romRefS: {}, plates: null, bars: null,
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0 } };
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0, rotMode: 'auto' } };
 }
 let S = defaults();
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(defaults(), JSON.parse(raw)); S.settings = Object.assign(defaults().settings, S.settings); } catch (e) { /* sin almacenamiento */ }
@@ -748,7 +749,7 @@ async function openCam(ex, guided, queue) {
   const sensor = S.settings.mode === 'sensor';
   if (!window.isSecureContext) { toast('La app necesita abrirse desde https'); return; }
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
-  cam.guided = !!guided; cam.queue = queue || null;
+  cam.guided = !!guided; cam.queue = queue || null; cam.autoRot = null; cam.rotCand = null;
   $('#cam-voice').setAttribute('aria-pressed', String(S.settings.voice));
   $('#diag').hidden = !S.settings.debug;
   $('#cam').classList.toggle('sensor', sensor);
@@ -930,7 +931,7 @@ function drawPose(lm, W, H, needed) {
 
 // imagen girada: se rota cada cuadro en un canvas antes de detectar (no depende de la rotación de Android)
 function rotSource(v) {
-  const rot = ((S.settings.rot || 0) % 360 + 360) % 360, cv = $('#rotcv');
+  const rot = currentRot(), cv = $('#rotcv');
   if (!rot) { if (!cv.hidden) { cv.hidden = true; v.style.visibility = ''; } return v; }
   const vw = v.videoWidth, vh = v.videoHeight, W = rot % 180 ? vh : vw, H = rot % 180 ? vw : vh;
   if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
@@ -955,7 +956,7 @@ function loop() {
     const q = C.detectionQuality(cam.ex.metric, raw);
     const out = cam.counter.update(now, lmPx, q, W, H);
     if (out.visible) cam.lastVisible = now;
-    autoRotate(lmPx, now);
+
     handleGate(out, now);
     REC.frame(now, raw, q, out.state);
     if (out.rep) onRep(now, out);
@@ -963,22 +964,37 @@ function loop() {
   }
   tick(now);
 }
-// si un ejercicio de pie o sentado se ve con el tronco de lado o al revés, la imagen está girada: se corrige sola
-function autoRotate(lm, now) {
-  const E = C.EXPECTED[cam.ex.id]; if (!lm || !E || E.indexOf('lying') >= 0 || cam.phase === 'set') { cam.rotVotes = []; return; }
-  const d = C.torsoDirection(lm); if (d == null) return;
-  cam.rotVotes = cam.rotVotes || []; cam.rotVotes.push(d); if (cam.rotVotes.length > 45) cam.rotVotes.shift();
-  if (cam.rotVotes.length < 45 || now - (cam.rotFixT || 0) < 6000) return;
-  const fix = (x) => (Math.abs(x) < 35 ? 0 : Math.abs(x) > 145 ? 180 : x > 0 ? 270 : 90);   // giro que deja el tronco vertical
-  const votes = cam.rotVotes.map(fix); const f = votes[0];
-  if (f !== 0 && votes.every((x) => x === f)) {
-    cam.rotFixT = now; cam.rotVotes = [];
-    S.settings.rot = ((S.settings.rot || 0) + f) % 360; save();
-    if (cam.counter) { cam.counter.template = null; cam.counter.state = 'search'; }
-    say('La imagen estaba girada. Ya la corregí.', true); toast('Imagen girada ' + f + '° automáticamente');
-  }
+// ---------- orientación de la imagen según la gravedad (sensor del teléfono) ----------
+// Con la imagen sola no se distingue "acostado" de "de pie con la imagen girada"; el acelerómetro sí sabe dónde está abajo.
+function gravityRot() {
+  const g = lastMotion; if (!g || Math.hypot(g.x, g.y) < 5) return null;           // teléfono casi plano: no se puede saber
+  const phiDev = Math.atan2(g.x, g.y) * 180 / Math.PI;                              // "arriba" del mundo, medido desde el borde superior del teléfono
+  const a = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+  const phi = (((phiDev - a) % 360) + 360) % 360;
+  const q = Math.round(phi / 90) % 4 * 90;                                          // arriba del mundo en la imagen, en pasos de 90°
+  return (360 - q) % 360;                                                            // giro horario que lo deja hacia arriba
 }
-$('#cam-rot').onclick = () => { S.settings.rot = ((S.settings.rot || 0) + 90) % 360; save(); cam.rotVotes = []; cam.rotFixT = performance.now(); if (cam.counter) cam.counter.template = null; toast('Imagen girada ' + S.settings.rot + '°'); };
+function currentRot() {
+  if (S.settings.rotMode === 'manual') return ((S.settings.rot || 0) % 360 + 360) % 360;
+  const gr = gravityRot();
+  if (gr == null) return cam.autoRot || 0;
+  // estable 1 s antes de cambiar, para no saltar al mover el teléfono
+  if (gr !== cam.autoRot) {
+    if (cam.rotCand !== gr) { cam.rotCand = gr; cam.rotCandT = performance.now(); }
+    else if (performance.now() - cam.rotCandT > 1000) {
+      const first = cam.autoRot == null; cam.autoRot = gr; cam.rotVotes = null;
+      if (cam.counter) { cam.counter.template = null; if (cam.counter.state === 'armed' && cam.phase !== 'set') cam.counter.state = 'search'; }
+      if (!first && gr) toast('Imagen enderezada según la posición del teléfono');
+    }
+  } else cam.rotCand = null;
+  return cam.autoRot || 0;
+}
+function autoRotate() { /* reemplazado por la orientación por gravedad */ }
+$('#cam-rot').onclick = () => {
+  S.settings.rotMode = 'manual'; S.settings.rot = (currentRot() + 90) % 360; save();
+  if (cam.counter) cam.counter.template = null;
+  toast('Giro manual ' + S.settings.rot + '°. Para volver al automático: Ajustes → Orientación');
+};
 function tick(now) {
   // fin automático de serie
   if (cam.phase === 'set') {
@@ -1041,7 +1057,7 @@ function handleGate(out, now) {
     cam.dbgT = now; const d = cam.counter.debug(), f2 = (x, n) => x == null || !isFinite(x) ? '—' : x.toFixed(n);
     const BY = { still: 'por quietud', template: 'por posición aprendida', manual: 'manual', pattern: 'por patrón' };
     $('#diag').textContent = (d.state === 'armed' ? 'contando ' + (BY[d.by] || '') : 'buscando posición') + '\nposición ' + (d.template ? f2(d.dist, 2) + ' / ' + d.tol : 'sin aprender') +
-      '\nmovimiento ' + f2(d.motion, 3) + '\nvalor ' + f2(d.value, 1) + '  rango ' + f2(d.range, 1) + ' / mín ' + f2(d.minRange, 1) + '\nreps ' + curReps();
+      '\nmovimiento ' + f2(d.motion, 3) + '\nvalor ' + f2(d.value, 1) + '  rango ' + f2(d.range, 1) + ' / mín ' + f2(d.minRange, 1) + '\nreps ' + curReps() + '\ngiro ' + currentRot() + '° (' + (S.settings.rotMode === 'manual' ? 'manual' : lastMotion ? 'gravedad' : 'sin sensor') + ') · postura ' + (cam.counter.postureNow || '—');
   }
 }
 $('#cam-arm').onclick = () => { const now = performance.now(); if (cam.counter && cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); REC.ev('manualArm'); } };
@@ -1239,7 +1255,7 @@ function loadSettings() {
   $('#set-voice').value = S.settings.voice ? '1' : '0'; $('#set-prewarn').value = String(S.settings.prewarn); $('#set-model').value = S.settings.model;
   $('#set-posture').value = S.settings.posture; $('#set-debug').value = S.settings.debug ? '1' : '0';
   $('#set-record').value = S.settings.record ? '1' : '0'; $('#set-countmode').value = S.settings.countMode;
-  $('#set-romvoice').value = S.settings.romVoice ? '1' : '0';
+  $('#set-romvoice').value = S.settings.romVoice ? '1' : '0'; $('#set-rotmode').value = S.settings.rotMode || 'auto';
 }
 $('#set-start').onchange = (e) => { if (e.target.value) { S.startDate = C.ymd(C.mondayOf(C.parseYmd(e.target.value))); e.target.value = S.startDate; save(); renderToday(); } };
 $('#set-autoend').onchange = (e) => { S.settings.autoEnd = +e.target.value; save(); };
@@ -1281,7 +1297,7 @@ const REC = (() => {
       t0 = performance.now(); lastT = 0;
       cur = { id: 'r' + Date.now().toString(36), startedAt: new Date().toISOString(), exId: ex.id, exName: ex.name, pattern: ex.pattern, metric: ex.metric,
         startHigh: ex.startHigh, repMin: ex.repMin, repMax: ex.repMax, facing: S.settings.facing, model: S.settings.model, countMode: S.settings.countMode,
-        video: (S.settings.rot || 0) % 180 ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight], rot: S.settings.rot || 0, ua: navigator.userAgent, joints: J, frames: [], events: [] };
+        video: currentRot() % 180 ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight], rot: currentRot(), ua: navigator.userAgent, joints: J, frames: [], events: [] };
     },
     frame(now, raw, q, state) {
       if (!cur || now - lastT < 66) return; lastT = now;
@@ -1309,6 +1325,7 @@ async function renderRecInfo() {
   const exs = new Set(all.map((s) => s.exName)).size;
   $('#rec-info').textContent = all.length ? all.length + ' grabaciones · ' + exs + ' ejercicios · ' + mins + ' min · ' + frames.toLocaleString('es-CL') + ' cuadros' : 'Aún no hay grabaciones. Entrena con la cámara y se guardarán solas.';
 }
+$('#set-rotmode').onchange = (e) => { S.settings.rotMode = e.target.value; save(); };
 $('#set-romvoice').onchange = (e) => { S.settings.romVoice = e.target.value === '1'; save(); };
 $('#set-record').onchange = (e) => { S.settings.record = e.target.value === '1'; save(); };
 $('#set-countmode').onchange = (e) => { S.settings.countMode = e.target.value; save(); };
@@ -1425,7 +1442,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 10;
+const APP_VER = 11;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {

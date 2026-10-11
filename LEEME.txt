@@ -28,7 +28,7 @@ Verte en grande (recomendado)
 - Duplica la pantalla del teléfono en el televisor: desliza el panel rápido → Smart View → elige el TV.
 - En la cámara toca "Modo TV": la app pasa a pantalla completa en horizontal (la imagen queda derecha en el TV). Toca la imagen para salir.
 - Botón de cámara (arriba a la derecha): muestra una miniatura de cada cámara del teléfono. Si aparece el gran angular, elígelo.
-- Si la imagen se ve girada, la app la corrige sola en ejercicios de pie o sentado. También puedes tocar "Girar imagen".
+- La imagen se endereza sola según el sensor de gravedad del teléfono (funciona aunque la rotación esté bloqueada). "Girar imagen" pasa a modo manual; para volver: Ajustes → Orientación de la imagen → Automática.
 - La app muestra tu postura (de pie, sentado, acostado, inclinado) y no cuenta si no corresponde al ejercicio (ej.: de pie en press banca).
 - Así puedes usar la cámara TRASERA (detecta mucho mejor que la frontal) y igual verte.
 
