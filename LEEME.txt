@@ -40,6 +40,20 @@ Discos
 - Ajustes → Mis discos y barras: registra tus discos (con foto si quieres) y tus barras.
 - En cada serie toca "Discos", marca los de un lado y la app calcula el total. También te dice qué poner para el peso sugerido.
 
+Novedades v16
+- Orden de los ejercicios: en Hoy toca "Cambiar orden" y muévelos con las flechas. "Agrupar por equipo" deja seguidos los de la misma estación (barra, Smith, polea…) para no armar y desarmar. El orden queda guardado por día.
+- Durante el entrenamiento guiado, en el descanso de transición, "Hacer otro primero" cambia el siguiente ejercicio. "Saltar ejercicio" lo deja para el final (ya no se pierde).
+
+Novedades v15
+- Doble revisión de cada serie: mientras entrenas la app cuenta en vivo; al cerrar la serie vuelve a contar con la serie completa a la vista y corrige. Si al empezar tomaste la barra o al terminar la soltaste y bajaste los brazos, esa "rep" se descarta ("Descarto una, fue al tomar o soltar la barra").
+- Probado con tus 39 series reales del 11-oct: error total 53 reps con la app que usaste → 19 con v15 (23 series exactas).
+- Ritmo de cada serie: segundos por rep y cuánto se enlentecieron las últimas. Si no se enlentecen, te quedaban reps en reserva; si se enlentecen mucho, llegaste cerca del fallo. Es una estimación.
+- Sonido: volumen y velocidad de la voz, pitidos más fuertes ("Máximo" se oye sobre la música) y pitido en cada rep. Ajustes → Avisos → "Probar sonido".
+- Si no anotas el peso, la voz te lo pide una vez por ejercicio y el campo parpadea. Al escribirlo se anota también en las series anteriores de hoy.
+- Resumen del día: se abre solo al terminar el entrenamiento guiado (y en Historial → "Ver resumen y recomendaciones"). Muestra series, reps, minutos, kilos, récords, comparación con la sesión anterior, qué subir la próxima vez y series por músculo de la semana. Ahí también puedes anotar el peso que faltó.
+- Mi perfil (Ajustes): peso corporal, estatura, edad y experiencia. Con eso calcula tu fuerza relativa (1RM estimado ÷ peso), tu meta de series por músculo y tu proteína de referencia.
+- Tu perfil de entrenamiento (Historial): constancia, series por sesión, descanso real vs. plan, cuántas series llevas cerca del fallo, evolución de tu peso y ejercicios estancados.
+
 Conteo automático (v14)
 - La app mide entre 6 y 12 señales a la vez (ángulo del codo/rodilla en 2D y 3D por lado, altura de muñecas, codos, caderas…) y cuenta por consenso de las señales limpias. Si una se pierde o tiene ruido, las otras siguen contando.
 - Probado con tus 23 series reales del 11-oct: error total bajó de 37 a 17 reps; el jalón de las 20:07 pasó de 1 a 16 (real ≈17).
@@ -64,4 +78,4 @@ Consejos para que cuente bien
 Tus datos quedan solo en el teléfono. Haz una "Copia de seguridad" en Historial de vez en cuando.
 
 Para desarrolladores
-- tools/bateria.js: reproduce un export ("Exportar datos para Claude") con el contador y compara contra las reps contadas a mano (tabla REF). Uso: node tools/bateria.js RepCam_datos.json.gz [single|leader]
+- tools/bateria.js: reproduce un export ("Exportar datos para Claude") con el contador y compara contra las reps contadas a mano (tabla REF). Uso: node tools/bateria.js RepCam_datos.json.gz [single|leader|noedge] [-v]

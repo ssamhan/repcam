@@ -124,7 +124,11 @@
     const buf = this.buf; buf.push({ t: t, v: this.ema });
     while (buf.length && t - buf[0].t > 8000) buf.shift();
     let mn = Infinity, mx = -Infinity;
-    for (let i = 0; i < buf.length; i++) { if (buf[i].v < mn) mn = buf[i].v; if (buf[i].v > mx) mx = buf[i].v; }
+    if (this.robust && buf.length > 20) {
+      // rango robusto: ignora un movimiento suelto (acomodarse, tomar la barra) que dura poco en la ventana
+      const vs = buf.map(function (b) { return b.v; }).sort(function (a, b) { return a - b; });
+      mn = vs[Math.floor(vs.length * 0.06)]; mx = vs[Math.ceil(vs.length * 0.94) - 1];
+    } else for (let i = 0; i < buf.length; i++) { if (buf[i].v < mn) mn = buf[i].v; if (buf[i].v > mx) mx = buf[i].v; }
     this.range = mx - mn;
     if (this.range < this.minRange) { this.zone = 'still'; this.norm = null; return false; }
     const n = (this.ema - mn) / this.range; this.norm = n;
@@ -531,8 +535,9 @@
     return o;
   }
   const MIN_AMP = { deg: 30, ratio: 0.18, m: 0.12 };
-  function Candidate(unit) {
-    this.unit = unit; this.tr = new SideTracker(MIN_AMP[unit], null); this.buf = []; this.snr = 0; this.amp = 0;
+  function Candidate(unit, startHigh) {
+    this.unit = unit; this.tr = new SideTracker(MIN_AMP[unit], startHigh); this.tr.robust = true; this.buf = []; this.snr = 0; this.amp = 0;
+    this.lo = Infinity; this.hi = -Infinity;   // extremos desde la última rep contada (para detectar reps atípicas)
   }
   Candidate.prototype.push = function (t, x) {
     const b = this.buf; b.push({ t: t, x: x }); while (b.length && t - b[0].t > 6000) b.shift();
@@ -545,9 +550,35 @@
       const noise = d2[d2.length >> 1] + MIN_AMP[this.unit] * 0.01;
       this.snr = this.amp >= MIN_AMP[this.unit] ? this.amp / noise : 0;
     }
-    return this.tr.push(t, x);
+    const r = this.tr.push(t, x), e = this.tr.ema;
+    if (e < this.lo) this.lo = e; if (e > this.hi) this.hi = e;
+    return r;
   };
-  function SignalBank(mode) { this.c = {}; this.leader = null; this.offset = 0; this.count = 0; this.leaderReps = 0; this.mode = mode || 'consensus'; }
+  // señal de referencia de cada métrica: su dirección (empieza arriba o abajo) se conoce por el ejercicio
+  const REF_PREFIX = { elbow: ['codo2D-', 'codo3D-'], knee: ['rodilla2D-', 'rodilla3D-'], kneeMin: ['rodilla2D-', 'rodilla3D-'], hip: ['cadera2D-', 'cadera3D-'], shoulderAbd: ['hombro2D-', 'hombro3D-'], wristDist: ['manos2D'], heel: ['talon-'] };
+  function corr(a, b) {
+    const n = a.length; if (n < 20) return 0; let ma = 0, mb = 0; for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; } ma /= n; mb /= n;
+    let sab = 0, saa = 0, sbb = 0; for (let i = 0; i < n; i++) { const x = a[i] - ma, y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; }
+    return saa && sbb ? sab / Math.sqrt(saa * sbb) : 0;
+  }
+  function SignalBank(mode, ref) { this.c = {}; this.leader = null; this.offset = 0; this.count = 0; this.leaderReps = 0; this.mode = mode || 'consensus'; this.ref = ref || null; this.t0 = null; this.reps = []; }
+  SignalBank.prototype.isRef = function (k) { return !!(this.ref && this.ref.prefixes.some(function (p) { return k.indexOf(p) === 0; })); };
+  // dirección de las demás señales: se correlaciona con la de referencia (ej.: en press banca, codo estirado = muñeca arriba)
+  SignalBank.prototype.resolveDir = function (t) {
+    let refK = null, best = 0;
+    for (const k in this.c) { const c = this.c[k]; if (this.isRef(k) && c.amp >= MIN_AMP[c.unit] && c.snr > best) { best = c.snr; refK = k; } }
+    for (const k in this.c) {
+      const c = this.c[k]; if (c.dirKnown) continue;
+      if (refK && c.amp >= MIN_AMP[c.unit]) {
+        const m = {}; this.c[refK].buf.forEach(function (p) { m[p.t] = p.x; });
+        const a = [], b = []; c.buf.forEach(function (p) { if (m[p.t] != null) { a.push(p.x); b.push(m[p.t]); } });
+        const r = corr(a, b);
+        if (Math.abs(r) > 0.5) { c.tr.startHigh = r > 0 ? this.ref.startHigh : !this.ref.startHigh; c.tr.visitedOpp = false; c.dirKnown = true; continue; }
+      }
+      // sin referencia visible: después de 4 s se acepta la dirección deducida de la posición inicial
+      if (!refK && t - c.t0 > 4000) c.dirKnown = true;
+    }
+  };
   SignalBank.prototype.score = function (k) {
     const c = this.c[k]; if (!c) return 0;
     const pres = c.pres.length ? c.pres.reduce(function (a, b) { return a + b; }, 0) / c.pres.length : 0;
@@ -555,12 +586,20 @@
     return c.snr * pres * pres;          // señales con huecos (muñeca fuera de cuadro, tapada) pierden
   };
   SignalBank.prototype.push = function (t, cands) {
+    if (this.t0 == null) this.t0 = t;
     for (const k in cands) {
-      const c = this.c[k] || (this.c[k] = new Candidate(cands[k].u));
+      let c = this.c[k];
+      if (!c) {
+        const isRef = this.isRef(k);
+        c = this.c[k] = new Candidate(cands[k].u, isRef ? this.ref.startHigh : null);
+        c.dirKnown = isRef || !this.ref; c.t0 = t;
+      }
       c.pres = c.pres || [];
       c.push(t, cands[k].v);
     }
     for (const k in this.c) { const c = this.c[k]; c.pres = c.pres || []; c.pres.push(k in cands ? 1 : 0); if (c.pres.length > 120) c.pres.shift(); }
+    this.frames = (this.frames || 0) + 1;
+    if (this.ref && this.frames % 10 === 0) this.resolveDir(t);
     let best = null, bs = 0;
     for (const k in this.c) { const sc = this.score(k); if (sc > bs) { bs = sc; best = k; } }
     const cur = this.leader, cs = cur ? this.score(cur) : 0;
@@ -579,19 +618,38 @@
       // consenso: mediana de las cuentas de todas las señales buenas (presentes y con buen movimiento/ruido)
       const top = bs;
       const counts = [];
-      for (const k in this.c) { const c = this.c[k]; if ((c.coverage || 0) >= 0.7 && this.score(k) >= top * 0.3 && c.amp >= MIN_AMP[c.unit]) counts.push(c.tr.count); }
+      const used = [];
+      for (const k in this.c) { const c = this.c[k]; if (c.dirKnown && (c.coverage || 0) >= 0.7 && this.score(k) >= top * 0.3 && c.amp >= MIN_AMP[c.unit]) { counts.push(c.tr.count); used.push(k); } }
       if (counts.length) {
         counts.sort(function (x, y) { return x - y; });
         const m = counts.length % 2 ? counts[counts.length >> 1] : Math.floor((counts[counts.length / 2 - 1] + counts[counts.length / 2]) / 2);
-        if (m > this.count) { this.count = m; this.leaderReps++; return true; }
+        if (m > this.count) { const d = m - this.count; this.count = m; this.leaderReps++; this.mark(t, used); return d; }
       }
-      return false;
+      return 0;
     }
     if (this.leader) {
       const n = this.c[this.leader].tr.count + this.offset;
-      if (n > this.count) { this.count = n; this.leaderReps++; return true; }
+      if (n > this.count) { const d = n - this.count; this.count = n; this.leaderReps++; this.mark(t, [this.leader]); return d; }
     }
-    return false;
+    return 0;
+  };
+  // guarda los extremos de cada señal en esta rep (para reconocer al final las reps atípicas: tomar o soltar la barra)
+  SignalBank.prototype.mark = function (t, used) {
+    const ext = {};
+    for (let i = 0; i < used.length; i++) { const c = this.c[used[i]]; if (isFinite(c.lo) && isFinite(c.hi)) ext[used[i]] = [c.lo, c.hi]; }
+    this.reps.push({ t: t, ext: ext });
+    for (const k in this.c) { const c = this.c[k]; c.lo = c.tr.ema; c.hi = c.tr.ema; }
+  };
+  // recorrido habitual de cada señal (mediana de las últimas reps)
+  SignalBank.prototype.envelope = function () {
+    const R = this.reps.slice(-8), o = {}, ks = {};
+    R.forEach(function (r) { for (const k in r.ext) ks[k] = 1; });
+    for (const k in ks) {
+      const xs = R.filter(function (r) { return r.ext[k]; }).map(function (r) { return r.ext[k]; }); if (xs.length < 3) continue;
+      const lo = median(xs.map(function (x) { return x[0]; })), hi = median(xs.map(function (x) { return x[1]; })), amp = median(xs.map(function (x) { return x[1] - x[0]; }));
+      if (amp > 0) o[k] = { lo: lo, hi: hi, amp: amp };
+    }
+    return o;
   };
   SignalBank.prototype.leaderTracker = function () { return this.leader ? this.c[this.leader].tr : null; };
   SignalBank.prototype.firstMoveT = function () { const tr = this.leaderTracker(); return tr ? tr.firstMoveT : null; };
@@ -647,12 +705,13 @@
     this.body = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
     this.sides = { L: new SideTracker(this.minRange, ex.startHigh), R: new SideTracker(this.minRange, ex.startHigh), C: new SideTracker(this.minRange, ex.startHigh) };
     this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0; this.lastRep = null; this.rejected = 0;
-    this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.lastRom = null; this.romLog = []; this.romSlack = opts.romSlack ?? 1; this.relTol = opts.relTol ?? 0.25; this.cyc = null; this.multi = opts.multi !== false; this.use3dRom = opts.use3dRom !== false; this.bankMode = opts.bankMode || 'consensus'; this.bank = new SignalBank(this.bankMode);
+    this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.lastRom = null; this.romLog = []; this.romSlack = opts.romSlack ?? 1; this.relTol = opts.relTol ?? 0.25; this.cyc = null; this.multi = opts.multi !== false; this.use3dRom = opts.use3dRom !== false; this.bankMode = opts.bankMode || 'consensus'; this.bank = this.newBank();
     this.state = 'search'; this.since = null; this.reason = 'camera';
     this.expected = EXPECTED[ex.id] || null; this.posture = new PostureTracker(); this.postureNow = null;
     this.motion = null; this.posBuf = []; this.recent = []; this.armPose = null; this.dist = null; this.armedBy = null;
   }
-  RepCounter.prototype.resetTrackers = function () { this.base = this.reps; for (const k in this.sides) this.sides[k].reset(); this.bank = new SignalBank(this.bankMode); };
+  RepCounter.prototype.newBank = function () { return new SignalBank(this.bankMode, REF_PREFIX[this.metric] ? { prefixes: REF_PREFIX[this.metric], startHigh: this.ex.startHigh } : null); };
+  RepCounter.prototype.resetTrackers = function () { this.base = this.reps; for (const k in this.sides) this.sides[k].reset(); this.bank = this.newBank(); this.bankBase = this.reps; this.series = {}; this.seriesFrames = 0; this.releasedT = null; this.outSince = null; };
   RepCounter.prototype.arm = function (t, by) {
     this.state = 'armed'; this.armedBy = by; this.since = null; this.awaySince = null; this.badPostSince = null; this.cyc = null; this.resetTrackers();
     this.armPose = meanPose(this.recent.slice(-15).map(function (r) { return r.v; }));
@@ -726,10 +785,15 @@
         for (const k in rf) { const v0 = rf[k]; if (v0 == null || isNaN(v0)) continue; if (c.min[k] == null || v0 < c.min[k]) c.min[k] = v0; if (c.max[k] == null || v0 > c.max[k]) c.max[k] = v0; }
       }
       const cands = signalCandidates(this.ex.pattern, lm, ctx3 && ctx3.wl, vis2, ctx3 && ctx3.up);
-      if (this.bank.push(t, cands)) {
+      const SR = this.series || (this.series = {}); this.seriesFrames = (this.seriesFrames || 0) + 1;
+      for (const k in cands) (SR[k] || (SR[k] = [])).push({ t: t, x: cands[k].v });
+      const dn = this.bank.push(t, cands);
+      if (dn) {
+        // si varias señales confirman de una vez reps anteriores (al empezar), se suman todas
+        if (dn > 1) this.reps += dn - 1;
         if (this.rhythm.accept(t, (this.bank.leaderTracker() || {}).repMid)) {
           const lt = this.bank.leaderTracker();
-          this.reps++; this.lastRep = t; out.rep = true;
+          this.reps++; this.lastRep = t; out.rep = true; out.added = dn;
           this.lastRom = lt ? { lo: lt.repLo, hi: lt.repHi } : null; if (this.lastRom && this.lastRom.lo != null) this.romLog.push(this.lastRom);
           const r3 = this.cyc && this.use3dRom ? romCheck3D(this.ex.pattern, this.cyc, this.romSlack) : undefined;
           out.rom = r3 !== undefined ? r3 : (lt ? romCheck(lt.startHigh, lt.repLo, lt.repHi, this.romLog.length >= 4 ? this.romSpan() : null, this.relTol) : null);
@@ -760,7 +824,149 @@
     return out;
   };
   // al cerrar la serie: descarta la última rep si llegó tras una pausa
-  RepCounter.prototype.finalize = function () { if (this.rhythm.trailingExtra()) { this.reps--; this.rhythm.times.pop(); this.rhythm.mids.pop(); if (this.romLog) this.romLog.pop(); return true; } return false; };
+  // ---------- recuento de la serie completa (segunda pasada) ----------
+  // Al terminar la serie se cuenta de nuevo con toda la señal a la vista (no solo el pasado):
+  // extremos alternados con histéresis adaptada al tamaño típico de tus reps.
+  function pct(a, q) { const b = a.slice().sort(function (x, y) { return x - y; }); return b[Math.min(b.length - 1, Math.max(0, Math.floor(q * (b.length - 1))))]; }
+  function smoothSeries(pts) {
+    const x = pts.map(function (p) { return p.x; }), o = [];
+    for (let i = 0; i < x.length; i++) { const w = x.slice(Math.max(0, i - 2), i + 3).sort(function (a, b) { return a - b; }); o.push(w[w.length >> 1]); }
+    const o2 = []; for (let i = 0; i < o.length; i++) { const a = o[Math.max(0, i - 1)], b = o[i], c = o[Math.min(o.length - 1, i + 1)]; o2.push((a + b + c) / 3); }
+    return o2;
+  }
+  function extrema(t, x, h) {
+    // extremos alternados (máx, mín, máx…): cada uno separado del anterior por al menos h
+    const E = []; let mode = 0, hiI = 0, loI = 0;
+    const push = function (k, type) { E.push({ i: k, t: t[k], v: x[k], type: type }); };
+    for (let i = 1; i < x.length; i++) {
+      if (mode === 0) {
+        if (x[i] > x[hiI]) hiI = i; if (x[i] < x[loI]) loI = i;
+        if (x[hiI] - x[i] >= h && hiI < i) { push(hiI, 'max'); mode = -1; loI = i; }
+        else if (x[i] - x[loI] >= h && loI < i) { push(loI, 'min'); mode = 1; hiI = i; }
+      } else if (mode === 1) {
+        if (x[i] > x[hiI]) hiI = i; else if (x[hiI] - x[i] >= h) { push(hiI, 'max'); mode = -1; loI = i; }
+      } else {
+        if (x[i] < x[loI]) loI = i; else if (x[i] - x[loI] >= h) { push(loI, 'min'); mode = 1; hiI = i; }
+      }
+    }
+    // el último extremo pendiente (la serie terminó en él)
+    if (mode === 1) push(hiI, 'max'); else if (mode === -1) push(loI, 'min');
+    return E;
+  }
+  function offlineCycles(pts, startHigh, minAmp) {
+    if (pts.length < 30) return null;
+    const t = pts.map(function (p) { return p.t; }), x = smoothSeries(pts);
+    const R = pct(x, 0.95) - pct(x, 0.05); if (!(R >= minAmp)) return null;
+    let E = extrema(t, x, Math.max(minAmp * 0.6, R * 0.3));
+    const sw = []; for (let i = 1; i < E.length; i++) sw.push(Math.abs(E[i].v - E[i - 1].v));
+    if (sw.length < 2) return null;
+    const S = median(sw); E = extrema(t, x, Math.max(minAmp * 0.6, S * 0.45));
+    const opp = startHigh ? 'min' : 'max', st = startHigh ? 'max' : 'min', cyc = [];
+    for (let i = 1; i < E.length - 1; i++) {
+      if (E[i].type !== opp || E[i - 1].type !== st || E[i + 1].type !== st) continue;
+      const a = E[i - 1].v, b = E[i].v, c = E[i + 1].v;
+      // la vuelta debe recorrer al menos la mitad del tamaño típico (si no, no volviste a la posición de inicio)
+      if (Math.abs(c - b) < S * 0.5) continue;
+      cyc.push({ t: E[i + 1].t, tOpp: E[i].t, lo: Math.min(a, b, c), hi: Math.max(a, b, c), amp: Math.abs(b - (a + c) / 2) });
+    }
+    return { cycles: cyc, swing: S };
+  }
+  // quita del borde las reps atípicas: tomar la barra al empezar, soltarla al terminar (pausa larga + recorrido distinto)
+  function trimEdges(list) {
+    // list: [{t, ext:{k:[lo,hi]}}]
+    let first = 0, last = 0;
+    const atyp = function (R, i) { const st = edgeStats(R, i); return st && (st.gap > EDGE.gapAlone || (st.gap > EDGE.gap && st.frac >= EDGE.frac)); };
+    let R = list.slice();
+    for (let k = 0; k < 2 && R.length >= 5 && atyp(R, R.length - 1); k++) { R.pop(); last++; }
+    if (R.length >= 5 && atyp(R, 0)) { R.shift(); first++; }
+    return { reps: R, first: first, last: last };
+  }
+  let RECOUNT_CV = 0.45;
+  // ritmo de la serie: segundos por rep y cuánto se enlentecieron las últimas (pérdida de velocidad ≈ cercanía al fallo)
+  function tempoStats(ts) {
+    if (!ts || ts.length < 5) return null;
+    const iv = []; for (let i = 1; i < ts.length; i++) iv.push((ts[i] - ts[i - 1]) / 1000);
+    const avg = function (a) { return a.reduce(function (x, y) { return x + y; }, 0) / a.length; };
+    const first = avg(iv.slice(0, 3)), last = avg(iv.slice(-2)), slow = Math.round((last / first - 1) * 100);
+    // estimación aproximada: sin enlentecer te sobraban varias reps; muy lento = cerca del fallo
+    const rirEst = slow < 8 ? 3 : slow < 18 ? 2 : slow < 30 ? 1 : 0;
+    return { tempo: Math.round(median(iv) * 10) / 10, slow: slow, rirEst: rirEst };
+  }
+  RepCounter.prototype.recount = function () {
+    const S = this.series; if (!S || !this.bank) return null;
+    const res = [], why = {};
+    for (const k in S) {
+      const c = this.bank.c[k]; if (!c || !c.dirKnown || c.tr.startHigh == null) { why[k] = 'dir'; continue; }
+      const pts = S[k]; const span = pts.length ? pts[pts.length - 1].t - pts[0].t : 0; if (span < 3000) { why[k] = 'corta'; continue; }
+      if (pts.length < 0.6 * (this.seriesFrames || 1)) { why[k] = 'huecos'; continue; }   // señal con muchos huecos
+      const r = offlineCycles(pts, c.tr.startHigh, MIN_AMP[c.unit]); if (!r || !r.cycles.length) { why[k] = 'sinciclos'; continue; }
+      why[k] = r.cycles.length; res.push({ k: k, r: r });
+    }
+    this.recountWhy = why;
+    if (!res.length) return null;
+    // cada señal se recorta en sus bordes (tomar/soltar la barra) y vota con su cuenta;
+    // se descartan señales rotas (muy pocas reps o ritmo irregular) y gana la cuenta más repetida
+    const votes = [];
+    res.forEach(function (o) {
+      const k = o.k, list = o.r.cycles.map(function (c) { const e = {}; e[k] = [c.lo, c.hi]; return { t: c.tOpp, ext: e }; });
+      const tr = trimEdges(list), ts = tr.reps.map(function (r) { return r.t; }), iv = [];
+      for (let i = 1; i < ts.length; i++) iv.push(ts[i] - ts[i - 1]);
+      const m = iv.length ? iv.reduce(function (a, b) { return a + b; }, 0) / iv.length : 0;
+      const cv = iv.length > 2 ? Math.sqrt(iv.reduce(function (a, b) { return a + (b - m) * (b - m); }, 0) / iv.length) / m : 0;
+      why[k] = tr.reps.length + (tr.first ? ' -1ª' : '') + (tr.last ? ' -' + tr.last + 'últ' : '') + ' cv' + cv.toFixed(2);
+      votes.push({ k: k, n: tr.reps.length, raw: list.length, first: tr.first, last: tr.last, cv: cv, ts: ts });
+    });
+    const mx = Math.max.apply(null, votes.map(function (v) { return v.n; }));
+    const good = votes.filter(function (v) { return v.n >= 2 && v.n >= 0.6 * mx && v.cv < RECOUNT_CV; });
+    if (!good.length) return null;          // ninguna señal confiable: queda el conteo en vivo
+    const freq = {}; good.forEach(function (v) { freq[v.n] = (freq[v.n] || 0) + 1; });
+    const ns = good.map(function (v) { return v.n; }).sort(function (a, b) { return a - b; }), med = ns[(ns.length - 1) >> 1];
+    let best = med; for (const n in freq) if (freq[n] > freq[best] || (freq[n] === freq[best] && Math.abs(n - med) < Math.abs(best - med))) best = +n;
+    const pick = good.filter(function (v) { return v.n === best; }).sort(function (a, b) { return a.cv - b.cv; });
+    this.repTimes = pick[0].ts;
+    return { count: best, raw: Math.max.apply(null, pick.map(function (v) { return v.raw; })), first: Math.max.apply(null, pick.map(function (v) { return v.first; })), last: Math.max.apply(null, pick.map(function (v) { return v.last; })), signals: good.length };
+  };
+  // rep atípica en un borde de la serie (tomar la barra al empezar, soltarla y bajar los brazos al terminar):
+  // llega tras una pausa larga y su recorrido no se parece al de las demás reps
+  function edgeStats(R, i) {
+    const L = R.length; if (L < 5) return null;
+    const mids = R.slice(1, L - 1), ivs = []; for (let j = 1; j < L - 1; j++) ivs.push(R[j].t - R[j - 1].t);
+    const mi = median(ivs.slice(1)) || median(ivs); if (!mi) return null;
+    const gap = i === 0 ? (R[1].t - R[0].t) / mi : (R[L - 1].t - R[L - 2].t) / mi;
+    let n = 0, out = 0, over = 0, small = 0;
+    for (const k in R[i].ext) {
+      const xs = mids.filter(function (r) { return r.ext[k]; }).map(function (r) { return r.ext[k]; }); if (xs.length < 3) continue;
+      const lo = median(xs.map(function (x) { return x[0]; })), hi = median(xs.map(function (x) { return x[1]; })), amp = median(xs.map(function (x) { return x[1] - x[0]; }));
+      if (!(amp > 0)) continue;
+      const e = R[i].ext[k], ov = Math.max(lo - e[0], e[1] - hi, 0) / amp, sm = (e[1] - e[0]) / amp;
+      n++; over += ov; small += sm; if (ov > EDGE.over || sm < EDGE.small) out++;
+    }
+    return n ? { gap: gap, frac: out / n, over: over / n, small: small / n } : { gap: gap, frac: 0, over: 0, small: 1 };
+  }
+  const EDGE = { over: 0.25, small: 0.55, gap: 1.6, gapAlone: 2.6, frac: 0.5 };
+  RepCounter.prototype.edgeDrop = function () {
+    if (!this.multi || !this.bank) return { first: false, last: false };
+    const R = this.bank.reps, f = edgeStats(R, 0), l = edgeStats(R, R.length - 1);
+    const bad = function (x) { return !!x && (x.gap > EDGE.gapAlone || (x.gap > EDGE.gap && x.frac >= EDGE.frac)); };
+    return { first: bad(f), last: bad(l), f: f, l: l };
+  };
+  RepCounter.prototype.finalize = function () {
+    // devuelve cuántas reps descartó (0, 1 o 2)
+    const rc = this.multi ? this.recount() : null;
+    if (rc) {
+      // segunda pasada: reemplaza el conteo en vivo (suma las reps de series anteriores en la misma activación)
+      const live = this.reps, fin = (this.bankBase || 0) + rc.count; this.recountInfo = rc;
+      this.reps = fin; this.droppedFirst = rc.first > 0; this.droppedLast = rc.last > 0;
+      this.setStats = tempoStats(this.repTimes);
+      return live - fin;
+    }
+    const e = this.edgeDrop(); let d = 0;
+    if (e.first && this.reps > 0) { this.reps--; d++; this.droppedFirst = true; }
+    if (e.last && this.reps > 0) { this.reps--; d++; if (this.rhythm.times.length) { this.rhythm.times.pop(); this.rhythm.mids.pop(); } if (this.romLog) this.romLog.pop(); this.droppedLast = true; }
+    if (!e.last && this.rhythm.trailingExtra()) { this.reps--; d++; this.rhythm.times.pop(); this.rhythm.mids.pop(); if (this.romLog) this.romLog.pop(); this.droppedLast = true; }
+    return d;
+  };
+  RepCounter.prototype.finalizeOld = function () { if (this.rhythm.trailingExtra()) { this.reps--; this.rhythm.times.pop(); this.rhythm.mids.pop(); if (this.romLog) this.romLog.pop(); return true; } return false; };
   RepCounter.prototype.romSpan = function () {
     // el mejor recorrido de la serie (2º mejor extremo, para ignorar un salto aislado)
     const L = this.romLog; if (L.length < 3) return null;
@@ -848,7 +1054,7 @@
   SensorCounter.prototype.arm = function (t, by, gn) { this.state = 'armed'; this.armedBy = by; this.ref = gn.slice(); this.tr.reset(); this.tr.count = 0; this.base = this.reps; };
   SensorCounter.prototype.manualArm = function (t) { if (this.state === 'armed' || !this.g) return false; const n = Math.hypot(this.g[0], this.g[1], this.g[2]) || 1; this.arm(t, 'manual', [this.g[0] / n, this.g[1] / n, this.g[2] / n]); return true; };
   SensorCounter.prototype.count = function () { return this.reps; };
-  SensorCounter.prototype.finalize = RepCounter.prototype.finalize;
+  SensorCounter.prototype.finalize = function () { return RepCounter.prototype.finalizeOld.call(this) ? 1 : 0; };
   SensorCounter.prototype.romSpan = RepCounter.prototype.romSpan;
   SensorCounter.prototype.lastRepT = function () { return this.lastRep; };
   SensorCounter.prototype.firstMoveT = function () { return this.tr.firstMoveT; };
@@ -900,9 +1106,22 @@
     if (!work.length) return { action: 'start', weight: null, text: 'Primera vez', detail: 'Elige un peso con el que llegues a ' + ex.repsText + ' reps dejando ' + ex.rir + ' en reserva.' };
     const last = work[work.length - 1];
     const w = topWeight(last);
+    if (!w) {
+      // sin peso anotado no se puede progresar la carga: se guía por reps
+      const tot = last.sets.reduce(function (a, b) { return a + b.reps; }, 0), top = last.sets.length && last.sets.every(function (x) { return x.reps >= ex.repMax; });
+      return { action: 'noweight', weight: null, text: top ? 'Sube el peso' : 'Anota el peso',
+        detail: top ? 'Llegaste a ' + ex.repMax + ' reps en todas las series: usa un poco más de peso y anótalo para seguir tu progreso.' : 'La última vez no anotaste el peso (' + tot + ' reps en total). Anótalo para que pueda decirte cuándo subir.' };
+    }
     const sets = last.sets.filter(function (s) { return s.weight === w; });
     const allTop = sets.length >= planned && sets.every(function (s) { return s.reps >= ex.repMax; });
-    const rirOk = sets.every(function (s) { return s.rir == null || s.rir >= 1 || ex.rir.charAt(0) === '0'; });
+    const rirOf = function (s) { return s.rir != null ? s.rir : s.rirEst != null ? s.rirEst : null; };
+    const rirOk = sets.every(function (s) { const r = rirOf(s); return r == null || r >= 1 || ex.rir.charAt(0) === '0'; });
+    // reps dentro del rango pero con mucha reserva (no se enlentecieron): también toca subir
+    const easy = sets.length >= planned && sets.every(function (s) { return s.reps >= ex.repMin + Math.floor((ex.repMax - ex.repMin) / 2) && rirOf(s) != null && rirOf(s) >= 3; });
+    if (easy && !sets.every(function (s) { return s.reps >= ex.repMax; })) {
+      const nw = roundTo(w + ex.inc, ex.inc < 1.25 ? 0.5 : 1.25);
+      return { action: 'up', weight: nw, text: 'Sube a ' + fmtKg(nw), detail: 'Con ' + fmtKg(w) + ' las reps no se enlentecieron: te quedaban 3 o más en reserva.' };
+    }
     const anyLow = sets.some(function (s) { return s.reps < ex.repMin; });
     if (allTop && rirOk) {
       const nw = roundTo(w + ex.inc, ex.inc < 1.25 ? 0.5 : 1.25);
@@ -924,6 +1143,16 @@
     }
     const totReps = sets.reduce(function (a, b) { return a + b.reps; }, 0);
     return { action: 'keep', weight: w, text: 'Mantén ' + fmtKg(w), detail: 'Busca al menos 1 rep más que la última vez (' + totReps + ' en total).' };
+  }
+  function e1rm(w, r) { return w && r ? w * (1 + Math.min(r, 15) / 30) : null; }   // Epley, aproximado
+  // series por músculo en una semana: músculo principal cuenta 1, secundario 0,5
+  function muscleSets(logs, week) {
+    const o = {};
+    logs.filter(function (l) { return l.week === week; }).forEach(function (l) {
+      const ex = PLAN.find(function (e) { return e.id === l.exId; }); if (!ex) return;
+      o[ex.muscle] = (o[ex.muscle] || 0) + 1; if (ex.muscle2) o[ex.muscle2] = (o[ex.muscle2] || 0) + 0.5;
+    });
+    return o;
   }
   function topWeight(session) { return session.sets.reduce(function (m, s) { return s.weight != null && s.weight > m ? s.weight : m; }, 0); }
   function fmtKg(x) { return (Math.round(x * 100) / 100).toString().replace('.', ',') + ' kg'; }
@@ -955,6 +1184,6 @@
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
     jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, posture3DFeatures: posture3DFeatures, classifyPosture3D: classifyPosture3D, upVector: upVector, metricValues3D: metricValues3D, romFeatures: romFeatures, postureVector: postureVector, classifyWithProfile: classifyWithProfile, romCheck3D: romCheck3D, ROM3D: ROM3D, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
-    SensorCounter: SensorCounter, Rhythm: Rhythm, SignalBank: SignalBank, signalCandidates: signalCandidates, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
+    SensorCounter: SensorCounter, Rhythm: Rhythm, EDGE: EDGE, e1rm: e1rm, muscleSets: muscleSets, tempoStats: tempoStats, offlineCycles: offlineCycles, SignalBank: SignalBank, signalCandidates: signalCandidates, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
