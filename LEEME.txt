@@ -40,6 +40,13 @@ Discos
 - Ajustes → Mis discos y barras: registra tus discos (con foto si quieres) y tus barras.
 - En cada serie toca "Discos", marca los de un lado y la app calcula el total. También te dice qué poner para el peso sugerido.
 
+Novedades v18 · Administrador
+- Sebastián Samhan es el administrador. Cada persona puede crear su cuenta en la pantalla "¿Quién entrena?" (+ Crear mi cuenta), marcar su equipo, elegir y editar su plan, y protegerla con huella o PIN. Al crearla se le avisa que el administrador puede verla.
+- Ajustes → Administración → "Administrar usuarios": lista de todas las personas con su plan, series, último entrenamiento, días entrenados en 4 semanas y tipo de acceso. Para cada una: ver y editar su cuenta (entra sin su huella; aparece una franja amarilla "Administrador · viendo a…" con "Volver a mi cuenta"), cambiar nombre, hacer administrador, desactivar (no puede entrar), quitar huella/PIN si la olvidó, descargar sus datos y eliminar.
+- Puedes decidir si cualquiera puede crear su cuenta o solo tú. Siempre queda al menos un administrador activo.
+- Protege tu cuenta de administrador con huella o PIN: si no, cualquiera que tome el teléfono entra como administrador.
+- Todo esto funciona dentro de este teléfono. Para que cada persona use su propio celular y tú las veas desde el tuyo hace falta un servidor en la nube (ver docs/PLAN_APP_NATIVA.md).
+
 Novedades v17
 - Varias personas en el mismo teléfono: toca el círculo con tus iniciales (arriba a la derecha) → "¿Quién entrena?". Cada persona tiene su propio plan, historial, ajustes, calibración y grabaciones. Tus datos actuales quedaron en el perfil "Sebastián Samhan" con tu plan de siempre.
 - Acceso con huella o PIN: Ajustes → Mi perfil → Acceso. La huella la verifica Android (la app no ve ni guarda tu huella). Es un bloqueo para separar perfiles en un teléfono compartido; los datos siguen guardados en el teléfono sin cifrar.

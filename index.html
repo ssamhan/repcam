@@ -167,6 +167,10 @@ input[type="date"], select { font-size: 16px; }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
 /* personas */
 .topright { display: flex; align-items: center; gap: 10px; }
+.adminbar { position: sticky; top: 0; z-index: 30; background: var(--warn); color: #1a1200; font-size: 14px; padding: 8px 16px; display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.adminbar button { border: 0; border-radius: 8px; padding: 4px 10px; font: 600 13px var(--body); background: #1a1200; color: #fff; cursor: pointer; }
+.ubtn.off { opacity: .5; }
+.ubtn .role { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .03em; }
 .userchip { width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); font: 700 14px var(--body); cursor: pointer; flex: none; }
 .login { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 20px 16px; overflow-y: auto; }
 .loginbox { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; }
@@ -315,9 +319,10 @@ input[type="date"], select { font-size: 16px; }
 </style>
 </head>
 <body>
+<div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v17</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v18</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -361,7 +366,12 @@ input[type="date"], select { font-size: 16px; }
         <div class="setting"><span>Edad</span><input type="number" id="pf-age" inputmode="numeric" min="14" max="99"></div>
         <div class="setting"><span>Experiencia<small>Define tu meta de series por músculo a la semana</small></span><select id="pf-level"><option value="principiante">Menos de 1 año</option><option value="intermedio">1 a 3 años</option><option value="avanzado">Más de 3 años</option></select></div>
         <p class="note" id="pf-note"></p>
-        <div class="row"><button class="btn ghost small" id="btn-switchuser">Cambiar de persona</button><button class="btn danger small" id="btn-deluser">Eliminar esta persona</button></div>
+        <div class="row"><button class="btn ghost small" id="btn-switchuser">Cambiar de persona</button></div>
+      </div>
+      <div class="card" id="admincard" hidden>
+        <h3>Administración</h3>
+        <p class="note">Eres administrador: ves a todas las personas de este teléfono, entras a sus cuentas, editas sus planes y decides quién puede crear cuenta.</p>
+        <button class="btn primary" id="btn-admin">Administrar usuarios (<span id="admincount">0</span>)</button>
       </div>
       <div class="card">
         <h3>Ciclo de entrenamiento</h3>
@@ -520,9 +530,31 @@ input[type="date"], select { font-size: 16px; }
     <h2>¿Quién entrena?</h2>
     <div class="ulist" id="ulist"></div>
     <div id="pinbox" hidden><label class="f">PIN de <span id="pinname"></span><input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></label><div class="row"><button class="btn ghost" id="pin-cancel">Volver</button><button class="btn primary" id="pin-ok">Entrar</button></div></div>
-    <div id="newbox" hidden><label class="f">Nombre<input id="newname" type="text" maxlength="40" autocomplete="off"></label><div class="row"><button class="btn ghost" id="new-cancel">Cancelar</button><button class="btn primary" id="new-ok">Crear</button></div></div>
+    <div id="newbox" hidden><label class="f">Nombre<input id="newname" type="text" maxlength="40" autocomplete="off"></label><p class="note" id="newnote"></p><div class="row"><button class="btn ghost" id="new-cancel">Cancelar</button><button class="btn primary" id="new-ok">Crear</button></div></div>
     <p class="note" id="loginmsg"></p>
     <div class="row" id="loginacts"><button class="btn ghost" id="btn-adduser">+ Agregar persona</button><button class="btn ghost" id="login-close" hidden>Cerrar</button></div>
+  </div>
+</div>
+
+<!-- administración de usuarios -->
+<div class="modal" id="admin" hidden>
+  <div class="box tall" role="dialog" aria-modal="true" aria-labelledby="ad-title">
+    <h3 id="ad-title">Usuarios</h3>
+    <label class="checkrow"><input type="checkbox" id="ad-signup"> Cualquiera puede crear su cuenta desde la pantalla de inicio</label>
+    <div class="liblist" id="ad-list"></div>
+    <div class="row"><button class="btn ghost" id="ad-add">+ Crear cuenta</button><button class="btn primary" id="ad-close">Cerrar</button></div>
+  </div>
+</div>
+<div class="modal" id="aduser" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="au-title">
+    <h3 id="au-title">Usuario</h3>
+    <div id="au-info" class="note"></div>
+    <label class="f">Nombre<input id="au-name" type="text" maxlength="40" autocomplete="off" style="font-size:16px"></label>
+    <div class="setting"><span>Rol</span><select id="au-role"><option value="user">Usuario</option><option value="admin">Administrador</option></select></div>
+    <div class="setting"><span>Estado<small>Una cuenta desactivada no puede entrar</small></span><select id="au-active"><option value="1">Activa</option><option value="0">Desactivada</option></select></div>
+    <div class="row"><button class="btn primary small" id="au-enter">Ver y editar su cuenta</button><button class="btn ghost small" id="au-reset">Quitar huella / PIN</button></div>
+    <div class="row"><button class="btn ghost small" id="au-export">Descargar sus datos</button><button class="btn danger small" id="au-del">Eliminar</button></div>
+    <div class="row"><button class="btn ghost" id="au-cancel">Cerrar</button><button class="btn primary" id="au-save">Guardar</button></div>
   </div>
 </div>
 
@@ -604,8 +636,8 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="core.js?v=17"></script>
-<script src="library.js?v=17"></script>
+<script src="core.js?v=18"></script>
+<script src="library.js?v=18"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -629,9 +661,17 @@ function loadUsers() {
   if (!U || !Array.isArray(U.list) || !U.list.length) {
     let had = false; try { had = !!localStorage.getItem(KEY); } catch (e) {}
     U = { list: [{ id: 'u1', name: had ? 'Sebastián Samhan' : 'Persona 1', lock: 'none' }], cur: 'u1' };
-    saveUsers();
   }
+  // roles: siempre hay al menos un administrador (el primero de la lista: Sebastián)
+  U.list.forEach((u) => { if (!u.role) u.role = 'user'; if (u.active === undefined) u.active = true; if (!u.created) u.created = todayYmdSafe(); });
+  if (!U.list.some((u) => u.role === 'admin')) U.list[0].role = 'admin';
+  if (U.allowSignup === undefined) U.allowSignup = true;
+  saveUsers();
 }
+function todayYmdSafe() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+const isAdmin = (u) => !!u && u.role === 'admin';
+// administrador que ya se identificó en esta sesión (puede entrar a cualquier cuenta sin su huella/PIN)
+function adminAuth() { try { const id = sessionStorage.getItem('repcam.adminAuth'); return U.list.find((u) => u.id === id && isAdmin(u) && u.active !== false) || null; } catch (e) { return null; } }
 function saveUsers() { try { localStorage.setItem(UKEY, JSON.stringify(U)); } catch (e) {} }
 const curUser = () => U.list.find((u) => u.id === U.cur) || U.list[0];
 function readUser(id) {
@@ -649,11 +689,16 @@ function applyPlan() {
   if (!C.DAYS.some((d) => d.key === selDay)) selDay = C.dayKeyOf(new Date()) || (C.DAYS[0] && C.DAYS[0].key) || 'L';
 }
 function enterUser(id) {
-  U.cur = id; saveUsers(); try { sessionStorage.setItem('repcam.unlocked', id); } catch (e) {}
+  U.cur = id; saveUsers(); try { sessionStorage.setItem('repcam.unlocked', id); if (isAdmin(curUser())) sessionStorage.setItem('repcam.adminAuth', id); } catch (e) {}
   S = readUser(id); selDay = null; applyPlan(); selDay = C.dayKeyOf(new Date()) || (C.DAYS[0] && C.DAYS[0].key) || 'L';
   REC.reset(); orderMode = false; $('#userchip').textContent = initials(curUser().name);
   loadSettings(); renderProfileNote(); refreshAll(); if (!$('#view-plan').hidden) renderPlan(); if (!$('#view-history').hidden) renderHistory();
   $('#login').hidden = true;
+  // franja de modo administrador cuando el admin mira la cuenta de otra persona
+  const ad = adminAuth(), viewing = ad && ad.id !== id;
+  $('#adminbar').hidden = !viewing; if (viewing) $('#adminbar-name').textContent = curUser().name;
+  $('#admincard').hidden = !isAdmin(curUser());
+  if ($('#admincard') && isAdmin(curUser())) $('#admincount').textContent = U.list.length;
 }
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 function save() { try { localStorage.setItem(dataKey(U.cur), JSON.stringify(S)); } catch (e) { toast('No se pudo guardar en este teléfono'); } }
@@ -1699,7 +1744,8 @@ async function bioCheck(u) {
 async function pinHash(id, pin) { const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('repcam|' + id + '|' + pin)); return b64u.enc(d); }
 let loginTarget = null;
 function showLogin(canClose) {
-  $('#ulist').innerHTML = U.list.map((u) => '<button class="ubtn' + (u.id === U.cur && canClose ? ' cur' : '') + '" data-uid="' + u.id + '"><span class="av">' + esc(initials(u.name)) + '</span><span>' + esc(u.name) + '<br><small>' + userSub(u) + '</small></span><span>' + (u.lock === 'bio' ? '🔒 huella' : u.lock === 'pin' ? '🔒 PIN' : '') + '</span></button>').join('');
+  $('#ulist').innerHTML = U.list.map((u) => '<button class="ubtn' + (u.id === U.cur && canClose ? ' cur' : '') + (u.active === false ? ' off' : '') + '" data-uid="' + u.id + '"><span class="av">' + esc(initials(u.name)) + '</span><span>' + (isAdmin(u) ? '<span class="role">Administrador</span><br>' : '') + esc(u.name) + '<br><small>' + (u.active === false ? 'Cuenta desactivada' : userSub(u)) + '</small></span><span>' + (u.lock === 'bio' ? '🔒 huella' : u.lock === 'pin' ? '🔒 PIN' : '') + '</span></button>').join('');
+  $('#btn-adduser').hidden = !U.allowSignup && !adminAuth();
   $('#pinbox').hidden = true; $('#newbox').hidden = true; $('#ulist').hidden = false; $('#loginacts').hidden = false; $('#loginmsg').textContent = '';
   $('#login-close').hidden = !canClose; $('#login').hidden = false;
 }
@@ -1711,7 +1757,10 @@ $('#login-close').onclick = () => { $('#login').hidden = true; };
 $('#ulist').addEventListener('click', async (ev) => {
   const b = ev.target.closest('[data-uid]'); if (!b) return;
   const u = U.list.find((x) => x.id === b.dataset.uid); if (!u) return;
+  const ad = adminAuth();
+  if (u.active === false && !ad) { $('#loginmsg').textContent = 'Esta cuenta está desactivada. Habla con el administrador.'; return; }
   if (u.id === U.cur && !$('#login-close').hidden) { $('#login').hidden = true; return; }   // ya estás dentro
+  if (ad) { enterUser(u.id); return; }   // el administrador ya se identificó en esta sesión
   if (u.lock === 'bio' && u.cred) {
     $('#loginmsg').textContent = 'Pon tu dedo en el lector…';
     try { if (await bioCheck(u)) { enterUser(u.id); return; } $('#loginmsg').textContent = 'No se pudo verificar. Intenta de nuevo.'; }
@@ -1728,12 +1777,13 @@ $('#pin-ok').onclick = async () => {
   if (await pinHash(u.id, $('#pin').value) === u.pin) enterUser(u.id); else { $('#loginmsg').textContent = 'PIN incorrecto.'; $('#pin').value = ''; }
 };
 $('#pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#pin-ok').click(); });
-$('#btn-adduser').onclick = () => { $('#newbox').hidden = false; $('#ulist').hidden = true; $('#loginacts').hidden = true; $('#newname').value = ''; setTimeout(() => $('#newname').focus(), 50); };
+$('#btn-adduser').onclick = () => { const a = U.list.find(isAdmin); $('#newnote').textContent = 'Tu cuenta guarda tu plan e historial en este teléfono.' + (a ? ' El administrador (' + a.name + ') puede verla y gestionarla.' : '') + ' Después puedes protegerla con huella o PIN en Ajustes → Mi perfil.'; $('#newbox').hidden = false; $('#ulist').hidden = true; $('#loginacts').hidden = true; $('#newname').value = ''; setTimeout(() => $('#newname').focus(), 50); };
 $('#new-cancel').onclick = () => showLogin(!$('#login-close').hidden);
 $('#new-ok').onclick = () => {
   const name = $('#newname').value.trim(); if (!name) { $('#loginmsg').textContent = 'Escribe un nombre.'; return; }
   const id = 'u' + Date.now().toString(36);
-  U.list.push({ id, name, lock: 'none' }); saveUsers();
+  if (U.list.some((x) => x.name.toLowerCase() === name.toLowerCase())) { $('#loginmsg').textContent = 'Ya existe una cuenta con ese nombre.'; return; }
+  U.list.push({ id, name, lock: 'none', role: 'user', active: true, created: todayYmdSafe() }); saveUsers();
   const d = readUser(id); try { localStorage.setItem(dataKey(id), JSON.stringify(d)); } catch (e) {}
   enterUser(id);
   // primera vez: marcar equipo y elegir plan
@@ -1741,13 +1791,6 @@ $('#new-ok').onclick = () => {
   toast('Hola ' + name.split(' ')[0] + ': marca tu equipo y elige un plan');
 };
 $('#btn-switchuser').onclick = () => showLogin(true);
-$('#btn-deluser').onclick = () => {
-  if (U.list.length < 2) { toast('Es la única persona: no se puede eliminar'); return; }
-  const u = curUser();
-  if (!confirm('¿Eliminar a ' + u.name + ' y todos sus datos de este teléfono? No se puede deshacer.')) return;
-  try { localStorage.removeItem(dataKey(u.id)); indexedDB.deleteDatabase(u.id === 'u1' ? 'repcam-rec' : 'repcam-rec-' + u.id); } catch (e) {}
-  U.list = U.list.filter((x) => x.id !== u.id); U.cur = U.list[0].id; saveUsers(); try { sessionStorage.removeItem('repcam.unlocked'); } catch (e) {} showLogin(false);
-};
 $('#pf-name').addEventListener('change', () => { const u = curUser(), n = $('#pf-name').value.trim(); if (!n) return; u.name = n; saveUsers(); $('#userchip').textContent = initials(n); toast('Nombre guardado'); });
 $('#pf-lock').addEventListener('change', async () => {
   const u = curUser(), v = $('#pf-lock').value;
@@ -1761,6 +1804,62 @@ $('#pf-lock').addEventListener('change', async () => {
     u.pin = await pinHash(u.id, p); u.lock = 'pin'; delete u.cred; saveUsers(); toast('PIN activado');
   } else { u.lock = 'none'; delete u.cred; delete u.pin; saveUsers(); toast('Sin bloqueo'); }
 });
+
+// ---------- administración de usuarios ----------
+let adSel = null;
+function userStats(u) {
+  let d = {}; try { d = JSON.parse(localStorage.getItem(dataKey(u.id)) || '{}'); } catch (e) {}
+  const L = d.logs || [], dates = [...new Set(L.map((l) => l.date))].sort(), since = C.ymd(new Date(Date.now() - 28 * 864e5));
+  return { series: L.length, days: dates.length, last: dates[dates.length - 1] || null, d28: dates.filter((x) => x >= since).length, plan: d.plan ? d.plan.name : (u.id === 'u1' ? C.DEFAULT_PLAN.name : '—'), data: d };
+}
+const fmtDate = (ymd) => ymd ? C.parseYmd(ymd).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }) : 'nunca';
+function renderAdmin() {
+  $('#ad-signup').checked = !!U.allowSignup;
+  $('#ad-list').innerHTML = U.list.map((u) => {
+    const st = userStats(u);
+    return '<button class="librow' + (u.active === false ? ' off' : '') + '" data-ad="' + u.id + '">' + esc(u.name) + (isAdmin(u) ? ' · administrador' : '') + (u.id === U.cur ? ' · (en uso)' : '') +
+      '<small>' + (u.active === false ? 'Desactivada · ' : '') + esc(st.plan) + ' · ' + st.series + ' series en ' + st.days + ' días · último: ' + fmtDate(st.last) + ' · ' + st.d28 + ' días en 4 semanas · acceso: ' + (u.lock === 'bio' ? 'huella' : u.lock === 'pin' ? 'PIN' : 'libre') + '</small></button>';
+  }).join('');
+}
+function openAdmin() {
+  if (!adminAuth()) { toast('Solo un administrador puede abrir esto'); return; }
+  const me = adminAuth(); if (me.lock === 'none') toast('Consejo: protege tu cuenta de administrador con huella o PIN');
+  renderAdmin(); $('#admin').hidden = false;
+}
+$('#btn-admin').onclick = openAdmin;
+$('#ad-close').onclick = () => { $('#admin').hidden = true; };
+$('#ad-signup').onchange = (e) => { U.allowSignup = e.target.checked; saveUsers(); toast(U.allowSignup ? 'Cualquiera puede crear su cuenta' : 'Solo el administrador crea cuentas'); };
+$('#ad-add').onclick = () => { $('#admin').hidden = true; showLogin(true); $('#btn-adduser').hidden = false; $('#btn-adduser').click(); };
+$('#ad-list').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-ad]'); if (!b) return;
+  adSel = U.list.find((u) => u.id === b.dataset.ad); const st = userStats(adSel);
+  $('#au-title').textContent = adSel.name; $('#au-name').value = adSel.name; $('#au-role').value = adSel.role; $('#au-active').value = adSel.active === false ? '0' : '1';
+  $('#au-info').textContent = 'Cuenta creada ' + fmtDate(adSel.created) + ' · ' + st.series + ' series · último entrenamiento ' + fmtDate(st.last) + ' · plan: ' + st.plan + ' · acceso: ' + (adSel.lock === 'bio' ? 'huella' : adSel.lock === 'pin' ? 'PIN' : 'libre');
+  $('#au-reset').disabled = adSel.lock === 'none'; $('#aduser').hidden = false;
+});
+$('#au-cancel').onclick = () => { $('#aduser').hidden = true; };
+$('#au-save').onclick = () => {
+  const u = adSel, n = $('#au-name').value.trim(), role = $('#au-role').value, active = $('#au-active').value === '1';
+  const admins = U.list.filter((x) => isAdmin(x) && x.active !== false);
+  if (isAdmin(u) && (role !== 'admin' || !active) && admins.length < 2) { toast('Debe quedar al menos un administrador activo'); return; }
+  if (n) u.name = n; u.role = role; u.active = active; saveUsers();
+  if (u.id === U.cur) { $('#userchip').textContent = initials(u.name); $('#pf-name').value = u.name; }
+  $('#aduser').hidden = true; renderAdmin(); toast('Usuario actualizado');
+};
+$('#au-enter').onclick = () => { const id = adSel.id; $('#aduser').hidden = true; $('#admin').hidden = true; enterUser(id); document.querySelector('.tab[data-view="plan"]').click(); };
+$('#au-reset').onclick = () => { if (!confirm('¿Quitar la huella o PIN de ' + adSel.name + '? Podrá entrar sin bloqueo y configurarlo de nuevo.')) return; adSel.lock = 'none'; delete adSel.cred; delete adSel.pin; saveUsers(); $('#au-reset').disabled = true; renderAdmin(); toast('Acceso restablecido'); };
+$('#au-export').onclick = () => { const st = userStats(adSel); downloadBlob(new Blob([JSON.stringify(st.data, null, 1)], { type: 'application/json' }), 'RepCam_' + adSel.name.replace(/\s+/g, '_') + '_' + todayYmd() + '.json'); };
+$('#au-del').onclick = () => {
+  const u = adSel;
+  if (isAdmin(u) && U.list.filter(isAdmin).length < 2) { toast('No puedes eliminar al único administrador'); return; }
+  if (u.id === adminAuth().id) { toast('No puedes eliminar tu propia cuenta mientras la usas'); return; }
+  if (!confirm('¿Eliminar a ' + u.name + ' y todos sus datos de este teléfono? No se puede deshacer.')) return;
+  try { localStorage.removeItem(dataKey(u.id)); indexedDB.deleteDatabase(u.id === 'u1' ? 'repcam-rec' : 'repcam-rec-' + u.id); } catch (e) {}
+  U.list = U.list.filter((x) => x.id !== u.id); saveUsers();
+  if (U.cur === u.id) enterUser(adminAuth().id);
+  $('#aduser').hidden = true; renderAdmin(); $('#admincount').textContent = U.list.length; toast('Usuario eliminado');
+};
+$('#adminbar-back').onclick = () => { const a = adminAuth(); if (a) enterUser(a.id); };
 
 // ---------- plan: armar y editar tu entrenamiento ----------
 const REPS_OPTS = ['3–5', '4–6', '5–8', '6–10', '8–10', '8–12', '10–12', '10–15', '12–15', '12–20', '15–20', '15–25', '20–30'];
@@ -2254,7 +2353,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 17;
+const APP_VER = 18;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
@@ -2268,7 +2367,7 @@ loadUsers();
 (() => {
   let un = null; try { un = sessionStorage.getItem('repcam.unlocked'); } catch (e) {}
   const cu = curUser();
-  if (un && U.list.some((u) => u.id === un)) enterUser(un);
+  if (un && U.list.some((u) => u.id === un && (u.active !== false || adminAuth()))) enterUser(un);
   else if (U.list.length === 1 && cu.lock === 'none') enterUser(cu.id);
   else showLogin(false);
 })();
