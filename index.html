@@ -252,7 +252,7 @@ input[type="date"], select { font-size: 16px; }
 <body>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v12</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v13</small></div>
     <div class="weekchip" id="weekchip"></div>
   </header>
 
@@ -309,6 +309,16 @@ input[type="date"], select { font-size: 16px; }
           <button class="btn ghost small" id="btn-resetplan">Volver a las series originales</button>
         </div>
         <input type="file" id="file-restore" accept="application/json,.json" hidden>
+      </div>
+      <div class="card">
+        <h3>Cámara y postura</h3>
+        <div class="setting"><span>Altura de la cámara<small>Metros desde el suelo</small></span><input type="number" id="set-camh" inputmode="decimal" step="0.05" min="0.2" max="3"></div>
+        <div class="setting"><span>Distancia al lugar de ejercicio<small>Metros aproximados</small></span><input type="number" id="set-camd" inputmode="decimal" step="0.1" min="0.5" max="10"></div>
+        <p class="note">La inclinación de la cámara la mide el sensor del teléfono; la altura y la distancia quedan guardadas con tus datos para ajustar los consejos y el análisis.</p>
+        <div class="setting"><span>Validar postura<small>No cuenta si la postura no corresponde al ejercicio</small></span><select id="set-checkpost"><option value="1">Sí</option><option value="0">No</option></select></div>
+        <div class="setting"><span>Exigencia de recorrido<small>Cuánto debe bajar o estirar cada rep para no recibir aviso</small></span><select id="set-romstrict"><option value="strict">Estricta</option><option value="normal">Normal</option><option value="soft">Suave</option></select></div>
+        <p class="note" id="calib-info">—</p>
+        <div class="row"><button class="btn primary small" id="btn-calib">Calibrar posturas (1 min)</button><button class="btn ghost small" id="btn-calibclear">Borrar calibración</button></div>
       </div>
       <div class="card">
         <h3>Mis discos y barras</h3>
@@ -435,7 +445,7 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="core.js?v=12"></script>
+<script src="core.js?v=13"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -445,8 +455,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 // ---------- estado persistente ----------
 const KEY = 'repcam.v1';
 function defaults() {
-  return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {}, romRef: {}, romRefS: {}, plates: null, bars: null,
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0, rotMode: 'auto' } };
+  return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {}, romRef: {}, romRefS: {}, plates: null, bars: null, postureProfile: null,
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0, rotMode: 'auto', camHeight: 1.7, camDist: 3, checkPosture: true, romStrict: 'normal' } };
 }
 let S = defaults();
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(defaults(), JSON.parse(raw)); S.settings = Object.assign(defaults().settings, S.settings); } catch (e) { /* sin almacenamiento */ }
@@ -738,6 +748,7 @@ function voiceTip(ex) {
   return 'Teléfono ' + (['fly', 'raise', 'pull'].includes(ex.pattern) ? 'de frente.' : 'de lado.');
 }
 function setupTip(ex) {
+  if (S.settings.mode !== 'sensor' && !S.postureProfile && !cam.tipCalibSaid) { cam.tipCalibSaid = true; }
   if (S.settings.mode === 'sensor') { const pl = C.PATTERN_PLACE[ex.pattern]; return pl ? 'Pon el teléfono ' + C.PLACEMENT[pl] + '.' : 'Este ejercicio no se puede contar con el sensor: usa los botones más uno y menos uno.'; }
   return camTip(ex);
 }
@@ -745,7 +756,8 @@ function introSay(ex) {
   const n = C.plannedSets(ex, S.overrides, weekNow()), done = logsToday(ex.id).length;
   return ex.name + '. ' + (done ? 'Llevas ' + numWord(done) + ' de ' + seriesWord(n) + '.' : seriesWord(n) + ' de ' + ex.repsText.replace('–', ' a ') + '.') + ' ' + voiceTip(ex) + ' Ponte en posición de inicio.';
 }
-async function openCam(ex, guided, queue) {
+async function openCam(ex, guided, queue, opts) {
+  opts = opts || {};
   const sensor = S.settings.mode === 'sensor';
   if (!window.isSecureContext) { toast('La app necesita abrirse desde https'); return; }
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
@@ -775,6 +787,7 @@ async function openCam(ex, guided, queue) {
     setStatus(e && e.name === 'NotAllowedError' ? 'Sin permiso para la cámara. Actívalo en los ajustes del navegador, o usa +1 / −1 para contar a mano.' : 'No se pudo iniciar la detección. Puedes contar con +1 / −1 y terminar la serie a mano.');
     sensorLoop(); return;
   }
+  if (opts.calib) { setStatus('Calibración de posturas: deja el teléfono donde siempre y sigue la voz.'); cam.hintT = performance.now(); loop(); return; }
   setStatus(camTip(ex));
   REC.start(ex, $('#video'));
   if (!guided) say(introSay(ex), true);
@@ -853,6 +866,7 @@ function sensorLoop() {
 function closeCam() {
   cancelAnimationFrame(camRaf); camRaf = null; stopStream(); stopMotion(); cam.lastOut = null;
   if ($('#cam').classList.contains('clean') || document.fullscreenElement) tvMode(false);
+  if (cam.calib) { cam.calib = null; renderCalibInfo(); }
   try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
   if (cam.phase === 'set' && curReps() > 0) endSet(false);
   REC.stop();
@@ -898,7 +912,10 @@ $('#cp-cancel').onclick = async () => { $('#campick').hidden = true; if (!stream
 const TOL = { strict: 0.7, normal: 1.0, loose: 1.5 };
 function newCounter(ex) {
   if (S.settings.mode === 'sensor') return new C.SensorCounter(ex, { typicalRange: S.romS[ex.id], romRef: S.romRefS[ex.id] });
-  return new C.RepCounter(ex, { typicalRange: S.rom[ex.id], romRef: S.romRef[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1, always: S.settings.countMode === 'always' });
+  const SL = { strict: 0, normal: 1, soft: 2 }[S.settings.romStrict] ?? 1, RT = { strict: 0.15, normal: 0.25, soft: 0.35 }[S.settings.romStrict] ?? 0.25;
+  const rc = new C.RepCounter(ex, { romSlack: SL, relTol: RT, typicalRange: S.rom[ex.id], romRef: S.romRef[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1, always: S.settings.countMode === 'always' });
+  if (!S.settings.checkPosture) rc.expected = null;   // validación de postura desactivada
+  return rc;
 }
 function curReps() { return Math.max(0, (cam.counter ? cam.counter.count() : 0) + cam.adj); }
 function setStatus(t) { const s = $('#cam-status'); if (!t) { s.hidden = true; return; } s.textContent = t; s.hidden = false; }
@@ -955,9 +972,60 @@ function posture3D(wl, lmPx, W, H) {
     }
   }
   const zs = S.settings.zSign == null ? 1 : S.settings.zSign;
-  const f = C.posture3DFeatures(wl, vis, C.upVector(g, a, r, zs));
-  cam.p3 = f;
-  return C.classifyPosture3D(f);
+  const up = C.upVector(g, a, r, zs);
+  const f = C.posture3DFeatures(wl, vis, up);
+  cam.p3 = f; cam.ctx3 = { wl, vis, up };
+  const f2 = C.features(clip);
+  cam.pvec = C.postureVector(f, f2);
+  const prof = S.postureProfile && Object.keys(S.postureProfile).length >= 2 ? S.postureProfile : null;
+  return (prof && C.classifyWithProfile(cam.pvec, prof)) || C.classifyPosture3D(f);
+}
+// ---------- calibración de posturas (guiada por voz) ----------
+const CALIB_STEPS = [
+  ['standing', 'Ponte de pie frente al rack, con las piernas a la vista'],
+  ['seated', 'Siéntate en el banco, derecho'],
+  ['lying', 'Acuéstate en el banco, boca arriba'],
+  ['kneeling', 'Arrodíllate en el suelo, con el tronco derecho'],
+  ['bent', 'Inclínate hacia adelante, como para un remo con barra'],
+];
+function startCalibration() {
+  cam.calib = { i: 0, stage: 'say', t: 0, samples: [], prof: {} };
+  openCam(C.PLAN[0], false, null, { calib: true });
+}
+function calibTick(now) {
+  const c = cam.calib; if (!c) return;
+  const step = CALIB_STEPS[c.i];
+  if (!step) {   // terminado
+    if (c.stage !== 'end') {
+      c.stage = 'end'; c.t = now;
+      const n = Object.keys(c.prof).length;
+      if (n >= 2) { S.postureProfile = Object.assign({}, S.postureProfile || {}, c.prof); save(); say('Calibración lista. Guardé ' + numWord(n) + ' posturas.', true); setStatus('Calibración lista: ' + n + ' posturas guardadas.'); }
+      else { say('No pude ver bien las posturas. Revisa que la cámara te vea completo e inténtalo de nuevo.', true); setStatus('No se guardó la calibración: la cámara no te vio bien.'); }
+    } else if (now - c.t > 3500) { cam.calib = null; closeCam(); renderCalibInfo(); }
+    return;
+  }
+  const label = C.POSTURE_NAME[step[0]].toUpperCase();
+  if (c.stage === 'say') { c.stage = 'prep'; c.t = now; c.samples = []; say(step[1] + '. Tienes cinco segundos.', true); }
+  if (c.stage === 'prep') {
+    const left = 6 - (now - c.t) / 1000;
+    setStatus((c.i + 1) + '/' + CALIB_STEPS.length + ' · ' + step[1] + ' · ' + Math.max(0, Math.ceil(left)));
+    if (left <= 0) { c.stage = 'rec'; c.t = now; say('Quieto.', true); }
+  } else if (c.stage === 'rec') {
+    setStatus('Grabando ' + label + '… quédate quieto');
+    if (cam.pvec && cam.pvec.t3 != null) c.samples.push(cam.pvec);
+    if (now - c.t > 2500) {
+      const ok = c.samples.length >= 10;
+      if (ok) {
+        const m = {}; ['t3', 'th', 'sh', 't2'].forEach((k) => { const xs = c.samples.map((v) => v[k]).filter((x) => x != null).sort((a, b) => a - b); if (xs.length) m[k] = xs[xs.length >> 1]; });
+        c.prof[step[0]] = m; beep(880, 0.12);
+      } else say('No te vi bien en esta postura, la salto.', true);
+      c.i++; c.stage = 'say';
+    }
+  }
+}
+function renderCalibInfo() {
+  const p = S.postureProfile; const el = $('#calib-info'); if (!el) return;
+  el.textContent = p && Object.keys(p).length ? 'Posturas calibradas: ' + Object.keys(p).map((k) => C.POSTURE_NAME[k]).join(', ') : 'Sin calibrar: se usan reglas generales.';
 }
 function loop() {
   camRaf = requestAnimationFrame(loop);
@@ -975,8 +1043,10 @@ function loop() {
     drawPose(raw, W, H, cam.needed);
     const q = C.detectionQuality(cam.ex.metric, raw);
     const wl = res.worldLandmarks && res.worldLandmarks[0];
+    cam.ctx3 = null;
     const post = wl ? posture3D(wl, lmPx, W, H) : undefined;
-    const out = cam.counter.update(now, lmPx, q, W, H, post);
+    if (cam.calib) { drawPose(raw, W, H, cam.needed); calibTick(now); tick(now); return; }
+    const out = cam.counter.update(now, lmPx, q, W, H, post, cam.ctx3);
     if (out.visible) cam.lastVisible = now;
 
     handleGate(out, now);
@@ -1037,7 +1107,7 @@ function gateMsg(out) {
   if (out.reason === 'wrongPosture') {
     const P = cam.counter.postureNow, E = C.EXPECTED[cam.ex.id] || [];
     if (P === 'inverted') return 'La imagen está al revés: toca Girar imagen';
-    return 'Te veo ' + C.POSTURE_NAME[P] + '. ' + (C.POSTURE_SAY[E[0]] || 'Ponte en posición') + ' para este ejercicio';
+    return 'Te veo ' + C.POSTURE_NAME[P] + '. ' + (C.POSTURE_SAY[E[0]] || 'Ponte en posición') + ' para este ejercicio' + (S.postureProfile ? '' : '. Si me equivoco, calibra tus posturas en Ajustes');
   }
   return cam.counter.template ? 'Vuelve a tu posición de inicio y quédate quieto' : 'Ponte en la posición de inicio y quédate quieto un segundo';
 }
@@ -1279,6 +1349,8 @@ function loadSettings() {
   $('#set-posture').value = S.settings.posture; $('#set-debug').value = S.settings.debug ? '1' : '0';
   $('#set-record').value = S.settings.record ? '1' : '0'; $('#set-countmode').value = S.settings.countMode;
   $('#set-romvoice').value = S.settings.romVoice ? '1' : '0'; $('#set-rotmode').value = S.settings.rotMode || 'auto';
+  $('#set-camh').value = S.settings.camHeight; $('#set-camd').value = S.settings.camDist;
+  $('#set-checkpost').value = S.settings.checkPosture ? '1' : '0'; $('#set-romstrict').value = S.settings.romStrict || 'normal';
 }
 $('#set-start').onchange = (e) => { if (e.target.value) { S.startDate = C.ymd(C.mondayOf(C.parseYmd(e.target.value))); e.target.value = S.startDate; save(); renderToday(); } };
 $('#set-autoend').onchange = (e) => { S.settings.autoEnd = +e.target.value; save(); };
@@ -1296,7 +1368,7 @@ document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () 
   document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', String(x === t)));
   ['today', 'history', 'settings'].forEach((v) => { $('#view-' + v).hidden = v !== t.dataset.view; });
   if (t.dataset.view === 'history') renderHistory();
-  if (t.dataset.view === 'settings') { renderRecInfo(); renderInventory(); }
+  if (t.dataset.view === 'settings') { renderRecInfo(); renderInventory(); renderCalibInfo(); }
   if (t.dataset.view === 'today') renderToday();
   window.scrollTo(0, 0);
 }));
@@ -1320,7 +1392,7 @@ const REC = (() => {
       t0 = performance.now(); lastT = 0;
       cur = { id: 'r' + Date.now().toString(36), startedAt: new Date().toISOString(), exId: ex.id, exName: ex.name, pattern: ex.pattern, metric: ex.metric,
         startHigh: ex.startHigh, repMin: ex.repMin, repMax: ex.repMax, facing: S.settings.facing, model: S.settings.model, countMode: S.settings.countMode,
-        video: currentRot() % 180 ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight], rot: currentRot(), ua: navigator.userAgent, joints: J, frames: [], events: [], w3: [], grav: [], screenAngle: (screen.orientation && screen.orientation.angle) || 0 };
+        video: currentRot() % 180 ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight], rot: currentRot(), ua: navigator.userAgent, joints: J, frames: [], events: [], w3: [], grav: [], screenAngle: (screen.orientation && screen.orientation.angle) || 0, camHeight: S.settings.camHeight, camDist: S.settings.camDist, postureProfile: S.postureProfile };
     },
     frame(now, raw, q, state, wl, g) {
       if (!cur || now - lastT < 66) return; lastT = now;
@@ -1353,6 +1425,12 @@ async function renderRecInfo() {
   const exs = new Set(all.map((s) => s.exName)).size;
   $('#rec-info').textContent = all.length ? all.length + ' grabaciones · ' + exs + ' ejercicios · ' + mins + ' min · ' + frames.toLocaleString('es-CL') + ' cuadros' : 'Aún no hay grabaciones. Entrena con la cámara y se guardarán solas.';
 }
+$('#set-camh').onchange = (e) => { S.settings.camHeight = +e.target.value; save(); };
+$('#set-camd').onchange = (e) => { S.settings.camDist = +e.target.value; save(); };
+$('#set-checkpost').onchange = (e) => { S.settings.checkPosture = e.target.value === '1'; save(); };
+$('#set-romstrict').onchange = (e) => { S.settings.romStrict = e.target.value; save(); };
+$('#btn-calib').onclick = () => { S.settings.mode = 'camera'; save(); startCalibration(); };
+$('#btn-calibclear').onclick = () => { S.postureProfile = null; save(); renderCalibInfo(); toast('Calibración borrada'); };
 $('#set-rotmode').onchange = (e) => { S.settings.rotMode = e.target.value; save(); };
 $('#set-romvoice').onchange = (e) => { S.settings.romVoice = e.target.value === '1'; save(); };
 $('#set-record').onchange = (e) => { S.settings.record = e.target.value === '1'; save(); };
@@ -1470,7 +1548,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 12;
+const APP_VER = 13;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {

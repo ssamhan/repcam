@@ -328,6 +328,91 @@
     return [Math.sin(phi) * s, -Math.cos(phi) * s, -(g.z / n) * zs];
   }
 
+  // ---------- ángulos y medidas en 3D (no se deforman con la perspectiva) ----------
+  function angle3(a, b, c) { return vang([a.x - b.x, a.y - b.y, a.z - b.z], [c.x - b.x, c.y - b.y, c.z - b.z]); }
+  function dot3(v, u) { return v[0] * u[0] + v[1] * u[1] + v[2] * u[2]; }
+  function metricValues3D(metric, wl, vis, up) {
+    const out = {}, ok = function () { for (let i = 0; i < arguments.length; i++) if (!vis(arguments[i]) || !wl[arguments[i]]) return false; return true; };
+    if (metric === 'wristDist') { if (ok(11, 12, 15, 16)) { const sw = Math.hypot.apply(null, vsub(wl[11], wl[12])); if (sw) out.C = Math.hypot.apply(null, vsub(wl[15], wl[16])) / sw; } return out; }
+    if (metric === 'kneeMin') { const vals = []; ['L', 'R'].forEach(function (k) { const S = SIDE[k]; if (ok(S.hip, S.kn, S.an)) vals.push(angle3(wl[S.hip], wl[S.kn], wl[S.an])); }); if (vals.length) out.C = Math.min.apply(null, vals); return out; }
+    ['L', 'R'].forEach(function (k) {
+      const S = SIDE[k]; let v = null;
+      if (metric === 'elbow' && ok(S.sh, S.el, S.wr)) v = angle3(wl[S.sh], wl[S.el], wl[S.wr]);
+      else if (metric === 'knee' && ok(S.hip, S.kn, S.an)) v = angle3(wl[S.hip], wl[S.kn], wl[S.an]);
+      else if (metric === 'hip' && ok(S.sh, S.hip, S.kn)) v = angle3(wl[S.sh], wl[S.hip], wl[S.kn]);
+      else if (metric === 'shoulderAbd' && ok(S.hip, S.sh, S.el)) v = angle3(wl[S.hip], wl[S.sh], wl[S.el]);
+      else if (metric === 'heel' && up && ok(S.hip, S.an, S.toe)) { const leg = Math.hypot.apply(null, vsub(wl[S.hip], wl[S.an])); if (leg) v = dot3(vsub(wl[S.an], wl[S.toe]), up) / leg; }
+      if (v != null) out[k] = v;
+    });
+    return out;
+  }
+  // medidas para evaluar el recorrido de cada rep (promedio de los lados visibles)
+  function romFeatures(wl, vis, up) {
+    const acc = {}, add = function (k, v) { if (v == null || isNaN(v)) return; (acc[k] = acc[k] || []).push(v); };
+    const ok = function () { for (let i = 0; i < arguments.length; i++) if (!vis(arguments[i]) || !wl[arguments[i]]) return false; return true; };
+    const down = up ? [-up[0], -up[1], -up[2]] : null;
+    ['L', 'R'].forEach(function (k) {
+      const S = SIDE[k];
+      if (ok(S.sh, S.el, S.wr)) { add('elbow', angle3(wl[S.sh], wl[S.el], wl[S.wr])); if (up) add('wristH', dot3(vsub(wl[S.wr], wl[S.sh]), up)); }
+      if (ok(S.hip, S.kn, S.an)) add('knee', angle3(wl[S.hip], wl[S.kn], wl[S.an]));
+      if (ok(S.sh, S.hip, S.kn)) add('hip', angle3(wl[S.sh], wl[S.hip], wl[S.kn]));
+      if (up && ok(S.hip, S.kn)) add('hipKneeH', dot3(vsub(wl[S.hip], wl[S.kn]), up));
+      if (down && ok(S.sh, S.el)) add('abd', vang(vsub(wl[S.el], wl[S.sh]), down));
+      if (up && ok(S.wr, S.kn)) add('wristKneeH', dot3(vsub(wl[S.wr], wl[S.kn]), up));
+    });
+    const o = {}; for (const k in acc) o[k] = acc[k].reduce(function (a, b) { return a + b; }, 0) / acc[k].length;
+    o.kneeMin = acc.knee ? Math.min.apply(null, acc.knee) : undefined;
+    if (ok(15, 16)) o.wristDist = Math.hypot.apply(null, vsub(wl[15], wl[16]));
+    if (up && ok(11, 12, 23, 24)) { const sh = { x: (wl[11].x + wl[12].x) / 2, y: (wl[11].y + wl[12].y) / 2, z: (wl[11].z + wl[12].z) / 2 }, hp = { x: (wl[23].x + wl[24].x) / 2, y: (wl[23].y + wl[24].y) / 2, z: (wl[23].z + wl[24].z) / 2 }; o.torsoTilt = vang(vsub(sh, hp), up); }
+    return o;
+  }
+  // criterios de recorrido completo por ejercicio (en grados o metros reales). k = holgura según la exigencia.
+  // deep: llegar al extremo del movimiento; full: volver completo a la posición de inicio. Devuelve true/false, o null si no se puede medir.
+  const lte = function (v, t) { return v == null ? null : v <= t; }, gte = function (v, t) { return v == null ? null : v >= t; };
+  // usa el criterio principal (alturas reales) y solo si no se puede medir, el secundario (ángulo)
+  const prefer = function (a, b) { return a != null ? a : b; };
+  const ROM3D = {
+    press_h: { deep: function (m, k) { return prefer(lte(m.min.wristH, 0.12 + 0.05 * k), lte(m.min.elbow, 95 + 10 * k)); }, full: function (M, k) { return gte(M.max.elbow, 150 - 10 * k); } },
+    press_v: { deep: function (m, k) { return gte(m.max.elbow, 150 - 10 * k); }, full: function (m, k) { return prefer(lte(m.min.wristH, 0.12 + 0.05 * k), lte(m.min.elbow, 85 + 10 * k)); } },
+    squat: { deep: function (m, k) { return prefer(lte(m.min.hipKneeH, 0.05 + 0.05 * k), lte(m.min.knee, 95 + 10 * k)); }, full: function (m, k) { return gte(m.max.knee, 160 - 10 * k); } },
+    lunge: { deep: function (m, k) { return lte(m.min.kneeMin, 100 + 10 * k); }, full: function (m, k) { return gte(m.max.knee, 150 - 10 * k); } },
+    hinge: { deep: function (m, k) { return prefer(gte(m.max.torsoTilt, 45 - 10 * k), lte(m.min.wristKneeH, 0.05 + 0.05 * k)); }, full: function (m, k) { return lte(m.min.torsoTilt, 20 + 10 * k); } },
+    hipthrust: { deep: function (m, k) { return gte(m.max.hip, 160 - 10 * k); }, full: function (m, k) { return lte(m.min.hip, 125 + 10 * k); } },
+    pull: { deep: function (m, k) { return prefer(lte(m.min.wristH, 0.15 + 0.05 * k), lte(m.min.elbow, 75 + 10 * k)); }, full: function (m, k) { return gte(m.max.elbow, 150 - 10 * k); } },
+    row: { deep: function (m, k) { return lte(m.min.elbow, 85 + 10 * k); }, full: function (m, k) { return gte(m.max.elbow, 150 - 10 * k); } },
+    curl: { deep: function (m, k) { return lte(m.min.elbow, 60 + 10 * k); }, full: function (m, k) { return gte(m.max.elbow, 150 - 10 * k); } },
+    pushdown: { deep: function (m, k) { return gte(m.max.elbow, 155 - 10 * k); }, full: function (m, k) { return lte(m.min.elbow, 90 + 10 * k); } },
+    overhead: { deep: function (m, k) { return gte(m.max.elbow, 150 - 10 * k); }, full: function (m, k) { return lte(m.min.elbow, 80 + 10 * k); } },
+    raise: { deep: function (m, k) { return gte(m.max.abd, 75 - 10 * k); }, full: function (m, k) { return lte(m.min.abd, 25 + 10 * k); } },
+    fly: { deep: function (m, k) { return lte(m.min.wristDist, 0.30 + 0.08 * k); }, full: function () { return null; } },
+    facepull: { deep: function (m, k) { return lte(m.min.elbow, 100 + 10 * k); }, full: function (m, k) { return gte(m.max.elbow, 150 - 10 * k); } },
+    legcurl: { deep: function (m, k) { return lte(m.min.knee, 80 + 10 * k); }, full: function (m, k) { return gte(m.max.knee, 155 - 10 * k); } },
+    legext: { deep: function (m, k) { return gte(m.max.knee, 160 - 10 * k); }, full: function (m, k) { return lte(m.min.knee, 100 + 10 * k); } },
+  };
+  // devuelve 'deep' | 'full' | null (bien) | undefined (no se pudo medir en 3D)
+  function romCheck3D(pattern, ext, k) {
+    const R = ROM3D[pattern]; if (!R) return undefined;
+    const m = { min: ext.min, max: ext.max };
+    const d = R.deep(m, k), f = R.full(m, k);
+    if (d == null && f == null) return undefined;
+    return d === false ? 'deep' : f === false ? 'full' : null;
+  }
+
+  // ---------- posturas calibradas por el usuario ----------
+  // profile: { standing: {t3, th, sh, t2}, seated: {...}, ... } grabado con SU cámara y SU sala.
+  const PKEYS = ['t3', 'th', 'sh', 't2'];
+  function postureVector(f3, f2) { return { t3: f3 && f3.torso, th: f3 && f3.thigh, sh: f3 && f3.shin, t2: f2 && f2.torso }; }
+  function classifyWithProfile(vec, profile) {
+    if (!profile) return null;
+    let best = null, bd = Infinity, n2 = 0;
+    for (const name in profile) {
+      const p = profile[name]; let s = 0, n = 0;
+      PKEYS.forEach(function (k) { if (vec[k] != null && p[k] != null) { const d = (vec[k] - p[k]) / 20; s += d * d; n++; } });
+      if (n >= 2) { n2++; const d = Math.sqrt(s / n); if (d < bd) { bd = d; best = name; } }
+    }
+    return n2 >= 2 && bd < 2.5 ? best : null;
+  }
+
   // solo bloquea contradicciones claras: acostado vs erguido, o imagen invertida
   function postureCompatible(P, E) {
     if (!E || P == null) return true;
@@ -419,10 +504,10 @@
   };
   // recorrido de la rep comparado con tu mejor recorrido en ese ejercicio
   // devuelve null (bien), 'deep' (faltó llegar al extremo opuesto) o 'full' (faltó volver completo)
-  function romCheck(startHigh, lo, hi, ref) {
+  function romCheck(startHigh, lo, hi, ref, tolFrac) {
     if (!ref || lo == null || hi == null) return null;
     const span = ref.hi - ref.lo; if (span <= 0) return null;
-    const tol = Math.max(0.15 * span, 0.0001);
+    const tol = Math.max((tolFrac || 0.25) * span, 0.0001);
     const shortLo = lo - ref.lo > tol, shortHi = ref.hi - hi > tol;
     // el extremo opuesto al inicio es el "profundo"
     const deepShort = startHigh ? shortLo : shortHi, fullShort = startHigh ? shortHi : shortLo;
@@ -446,14 +531,14 @@
     this.body = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
     this.sides = { L: new SideTracker(this.minRange, ex.startHigh), R: new SideTracker(this.minRange, ex.startHigh), C: new SideTracker(this.minRange, ex.startHigh) };
     this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0; this.lastRep = null; this.rejected = 0;
-    this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.lastRom = null; this.romLog = [];
+    this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.lastRom = null; this.romLog = []; this.romSlack = opts.romSlack ?? 1; this.relTol = opts.relTol ?? 0.25; this.cyc = null;
     this.state = 'search'; this.since = null; this.reason = 'camera';
     this.expected = EXPECTED[ex.id] || null; this.posture = new PostureTracker(); this.postureNow = null;
     this.motion = null; this.posBuf = []; this.recent = []; this.armPose = null; this.dist = null; this.armedBy = null;
   }
   RepCounter.prototype.resetTrackers = function () { this.base = this.reps; for (const k in this.sides) this.sides[k].reset(); };
   RepCounter.prototype.arm = function (t, by) {
-    this.state = 'armed'; this.armedBy = by; this.since = null; this.awaySince = null; this.badPostSince = null; this.resetTrackers();
+    this.state = 'armed'; this.armedBy = by; this.since = null; this.awaySince = null; this.badPostSince = null; this.cyc = null; this.resetTrackers();
     this.armPose = meanPose(this.recent.slice(-15).map(function (r) { return r.v; }));
   };
   RepCounter.prototype.smoothPose = function () { return meanPose(this.recent.slice(-8).map(function (r) { return r.v; })); };
@@ -464,7 +549,7 @@
     const mx = W * 0.02, my = H * 0.02;
     return lm.map(function (p) { return p && (p.x < -mx || p.x > W + mx || p.y < -my || p.y > H + my) ? { x: p.x, y: p.y, visibility: 0 } : p; });
   }
-  RepCounter.prototype.update = function (t, lm, quality, W, H, post3d) {
+  RepCounter.prototype.update = function (t, lm, quality, W, H, post3d, ctx3) {
     lm = clipToFrame(lm, W, H);
     const out = { visible: false, rep: false, armed: false, disarmed: false };
     const see = quality == null ? !!lm : quality >= 0.5;
@@ -518,15 +603,22 @@
     }
 
     if (this.state === 'armed' && see) {
-      const vals = metricValues(this.metric, lm);
+      const use3 = ctx3 && ctx3.wl;
+      const vals = use3 ? metricValues3D(this.metric, ctx3.wl, ctx3.vis, ctx3.up) : metricValues(this.metric, lm);
+      if (use3) {   // extremos del ciclo actual para evaluar el recorrido en vivo
+        const rf = romFeatures(ctx3.wl, ctx3.vis, ctx3.up), c = this.cyc || (this.cyc = { min: {}, max: {} });
+        for (const k in rf) { const v = rf[k]; if (v == null || isNaN(v)) continue; if (c.min[k] == null || v < c.min[k]) c.min[k] = v; if (c.max[k] == null || v > c.max[k]) c.max[k] = v; }
+      }
       for (const k in vals) { const s = this.sides[k]; if (s.push(t, vals[k]) && s.range > this.maxRange) this.maxRange = s.range; }
       let best = 0, bs = null; for (const k in this.sides) if (this.sides[k].count > best) { best = this.sides[k].count; bs = this.sides[k]; }
       if (this.base + best - this.rejected > this.reps) {
         if (this.rhythm.accept(t, bs.repMid)) {
           this.reps = this.base + best - this.rejected; this.lastRep = t; out.rep = true;
           this.lastRom = { lo: bs.repLo, hi: bs.repHi }; if (bs.repLo != null) this.romLog.push(this.lastRom);
-          out.rom = romCheck(this.ex.startHigh, bs.repLo, bs.repHi, this.romRef || (this.romLog.length >= 4 ? this.romSpan() : null));
-        } else this.rejected++;
+          const r3 = this.cyc ? romCheck3D(this.ex.pattern, this.cyc, this.romSlack) : undefined;
+          out.rom = r3 !== undefined ? r3 : romCheck(this.ex.startHigh, bs.repLo, bs.repHi, this.romRef || (this.romLog.length >= 4 ? this.romSpan() : null), this.relTol);
+          out.rom3d = r3 !== undefined; this.lastCyc = this.cyc; this.cyc = null;
+        } else { this.rejected++; this.cyc = null; }
       }
     }
     out.state = this.state; out.reason = this.reason;
@@ -720,7 +812,7 @@
   const api = { PLAN: PLAN, DAYS: DAYS, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
-    jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, posture3DFeatures: posture3DFeatures, classifyPosture3D: classifyPosture3D, upVector: upVector, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
+    jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, posture3DFeatures: posture3DFeatures, classifyPosture3D: classifyPosture3D, upVector: upVector, metricValues3D: metricValues3D, romFeatures: romFeatures, postureVector: postureVector, classifyWithProfile: classifyWithProfile, romCheck3D: romCheck3D, ROM3D: ROM3D, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
     SensorCounter: SensorCounter, Rhythm: Rhythm, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

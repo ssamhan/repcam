@@ -31,6 +31,9 @@ Verte en grande (recomendado)
 - La imagen se endereza sola según el sensor de gravedad del teléfono (funciona aunque la rotación esté bloqueada). "Girar imagen" pasa a modo manual; para volver: Ajustes → Orientación de la imagen → Automática.
 - La app muestra tu postura (de pie, sentado, acostado, inclinado, arrodillado) usando el esqueleto 3D y el sensor de gravedad: funciona aunque la cámara esté alta e inclinada. No cuenta si la postura no corresponde al ejercicio (ej.: de pie en press banca).
 - Los primeros segundos con la cámara la app se calibra sola: quédate de pie, con las piernas visibles.
+- Recomendado: Ajustes → "Calibrar posturas (1 min)". Con el teléfono donde siempre, la voz te pide ponerte de pie, sentado, acostado, arrodillado e inclinado, y la app aprende cómo te ve en tu sala.
+- Ajustes → Cámara y postura: altura y distancia de la cámara, validar postura (sí/no) y exigencia del recorrido (estricta / normal / suave).
+- Los avisos de recorrido usan medidas reales en 3D (ej.: en press banca, que la barra llegue al pecho).
 - Así puedes usar la cámara TRASERA (detecta mucho mejor que la frontal) y igual verte.
 
 Discos
