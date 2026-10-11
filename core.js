@@ -707,7 +707,7 @@
     this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0; this.lastRep = null; this.rejected = 0;
     this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.lastRom = null; this.romLog = []; this.romSlack = opts.romSlack ?? 1; this.relTol = opts.relTol ?? 0.25; this.cyc = null; this.multi = opts.multi !== false; this.use3dRom = opts.use3dRom !== false; this.bankMode = opts.bankMode || 'consensus'; this.bank = this.newBank();
     this.state = 'search'; this.since = null; this.reason = 'camera';
-    this.expected = EXPECTED[ex.id] || null; this.posture = new PostureTracker(); this.postureNow = null;
+    this.expected = ex.post || EXPECTED[ex.id] || null; this.posture = new PostureTracker(); this.postureNow = null;
     this.motion = null; this.posBuf = []; this.recent = []; this.armPose = null; this.dist = null; this.armedBy = null;
   }
   RepCounter.prototype.newBank = function () { return new SignalBank(this.bankMode, REF_PREFIX[this.metric] ? { prefixes: REF_PREFIX[this.metric], startHigh: this.ex.startHigh } : null); };
@@ -1075,7 +1075,26 @@
   }
   function cycleWeek(w) { return ((w - 1) % 8) + 1; }
   function isDeload(w) { return cycleWeek(w) === 8; }
-  function dayKeyOf(date) { const wd = date.getDay(); return wd >= 1 && wd <= 5 ? DAYS[wd - 1].key : null; }
+  const WD_KEY = ['D', 'L', 'M', 'X', 'J', 'V', 'S'], KEY_ORDER = 'LMXJVSD';
+  function dayKeyOf(date) { const k = WD_KEY[date.getDay()]; return DAYS.some(function (d) { return d.key === k; }) ? k : null; }
+  // ---------- planes por persona ----------
+  // plan = { name, days: [{ key, name, session, items: [ejercicio completo] }] }
+  const DEFAULT_PLAN = { name: 'Plan casa de Sebastián (5 días)', template: 'sebastian', days: DAYS.map(function (d) {
+    return { key: d.key, name: d.name, session: d.session, items: PLAN.filter(function (e) { return e.day === d.key; }).map(function (e) { return Object.assign({}, e); }) };
+  }) };
+  function setPlan(plan) {
+    plan = plan || DEFAULT_PLAN;
+    const days = plan.days.slice().sort(function (a, b) { return KEY_ORDER.indexOf(a.key) - KEY_ORDER.indexOf(b.key); });
+    DAYS.length = 0; PLAN.length = 0;
+    days.forEach(function (d) {
+      DAYS.push({ key: d.key, name: d.name, session: d.session || '' });
+      d.items.forEach(function (it) {
+        const o = Object.assign({}, it); o.day = d.key;
+        const r = String(o.repsText || '8–12').split('–').map(Number); o.repMin = r[0]; o.repMax = r[1] || r[0];
+        PLAN.push(o);
+      });
+    });
+  }
 
   function plannedSets(ex, overrides, week) {
     const base = (overrides && overrides[ex.id]) || ex.sets;
@@ -1180,7 +1199,7 @@
   const JOINT_HELP = { elbow: 'hombro, codo y muñeca', knee: 'cadera, rodilla y tobillo', kneeMin: 'cadera, rodilla y tobillo', hip: 'hombro, cadera y rodilla',
     shoulderAbd: 'cadera, hombro y codo', heel: 'cadera, tobillo y punta del pie', wristDist: 'ambos hombros y ambas muñecas' };
 
-  const api = { PLAN: PLAN, DAYS: DAYS, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
+  const api = { PLAN: PLAN, DAYS: DAYS, DEFAULT_PLAN: DEFAULT_PLAN, setPlan: setPlan, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
     jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, posture3DFeatures: posture3DFeatures, classifyPosture3D: classifyPosture3D, upVector: upVector, metricValues3D: metricValues3D, romFeatures: romFeatures, postureVector: postureVector, classifyWithProfile: classifyWithProfile, romCheck3D: romCheck3D, ROM3D: ROM3D, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,

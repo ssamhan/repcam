@@ -4,7 +4,7 @@ La cámara del navegador solo funciona en páginas https, así que la app debe a
 
 Opción recomendada: GitHub Pages (gratis)
 1. Crea un repositorio público en github.com, por ejemplo "repcam".
-2. Sube todos los archivos de esta carpeta (index.html, core.js, sw.js, manifest.webmanifest y los íconos).
+2. Sube todos los archivos de esta carpeta (index.html, core.js, library.js, sw.js, manifest.webmanifest y los íconos).
 3. En el repositorio: Settings → Pages → Branch: main → / (root) → Save.
 4. A los 1–2 minutos queda en https://TU-USUARIO.github.io/repcam/
 
@@ -39,6 +39,13 @@ Verte en grande (recomendado)
 Discos
 - Ajustes → Mis discos y barras: registra tus discos (con foto si quieres) y tus barras.
 - En cada serie toca "Discos", marca los de un lado y la app calcula el total. También te dice qué poner para el peso sugerido.
+
+Novedades v17
+- Varias personas en el mismo teléfono: toca el círculo con tus iniciales (arriba a la derecha) → "¿Quién entrena?". Cada persona tiene su propio plan, historial, ajustes, calibración y grabaciones. Tus datos actuales quedaron en el perfil "Sebastián Samhan" con tu plan de siempre.
+- Acceso con huella o PIN: Ajustes → Mi perfil → Acceso. La huella la verifica Android (la app no ve ni guarda tu huella). Es un bloqueo para separar perfiles en un teléfono compartido; los datos siguen guardados en el teléfono sin cifrar.
+- Nueva pestaña Plan: arma o cambia tu plan. Marca "Mi equipo", elige una plantilla (cuerpo completo 3 días, torso/pierna 4 días, empuje/tirón/pierna, casa con mancuernas, sin equipo con elásticos, máquinas) o tu plan original, y edita cada día: agregar, quitar, reemplazar, mover, series, reps, RIR y descanso. Muestra cuántas series por músculo haces a la semana frente a tu meta.
+- Biblioteca de unos 100 ejercicios: barra, mancuernas, polea, Smith, máquinas, elásticos, kettlebell, landmine y peso corporal. Todos se pueden contar con la cámara.
+- Nueva animación de cada ejercicio: la figura verde es la posición de inicio que reconoce la cámara (quédate quieto 1 s ahí); la línea naranja es el recorrido; el número es el ángulo que la cámara usa para contar, en vivo.
 
 Novedades v16
 - Orden de los ejercicios: en Hoy toca "Cambiar orden" y muévelos con las flechas. "Agrupar por equipo" deja seguidos los de la misma estación (barra, Smith, polea…) para no armar y desarmar. El orden queda guardado por día.
