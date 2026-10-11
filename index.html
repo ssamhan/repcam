@@ -252,7 +252,7 @@ input[type="date"], select { font-size: 16px; }
 <body>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v11</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v12</small></div>
     <div class="weekchip" id="weekchip"></div>
   </header>
 
@@ -435,7 +435,7 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="core.js?v=11"></script>
+<script src="core.js?v=12"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -939,6 +939,26 @@ function rotSource(v) {
   if (cv.hidden) { cv.hidden = false; v.style.visibility = 'hidden'; }
   return cv;
 }
+// postura 3D: esqueleto en metros + gravedad del teléfono. El signo del eje de profundidad se calibra solo:
+// en casi todas las posturas del gimnasio las canillas quedan cerca de la vertical; se elige el signo que lo cumple.
+function posture3D(wl, lmPx, W, H) {
+  const clip = C.clipToFrame(lmPx, W, H);
+  const vis = (i) => clip && clip[i] && (clip[i].visibility ?? 0) >= 0.5;
+  const a = (screen.orientation && screen.orientation.angle) || window.orientation || 0, r = currentRot();
+  const g = lastMotion && Math.hypot(lastMotion.x, lastMotion.y, lastMotion.z) > 5 ? lastMotion : null;
+  if (S.settings.zSign == null && g) {
+    const fp = C.posture3DFeatures(wl, vis, C.upVector(g, a, r, 1)), fn = C.posture3DFeatures(wl, vis, C.upVector(g, a, r, -1));
+    if (fp && fn && fp.shin != null && fn.shin != null) {
+      cam.zCal = cam.zCal || { p: 0, n: 0, k: 0 }; cam.zCal.p += fp.shin; cam.zCal.n += fn.shin; cam.zCal.k++;
+      if (cam.zCal.k >= 60) { const mp = cam.zCal.p / cam.zCal.k, mn = cam.zCal.n / cam.zCal.k;
+        if (Math.abs(mp - mn) > 12) { S.settings.zSign = mp < mn ? 1 : -1; save(); } else cam.zCal = null; }
+    }
+  }
+  const zs = S.settings.zSign == null ? 1 : S.settings.zSign;
+  const f = C.posture3DFeatures(wl, vis, C.upVector(g, a, r, zs));
+  cam.p3 = f;
+  return C.classifyPosture3D(f);
+}
 function loop() {
   camRaf = requestAnimationFrame(loop);
   const v = $('#video'); if (!landmarker || v.readyState < 2) return;
@@ -954,11 +974,13 @@ function loop() {
     if (raw) lmPx = raw.map((p) => ({ x: p.x * W, y: p.y * H, visibility: p.visibility }));
     drawPose(raw, W, H, cam.needed);
     const q = C.detectionQuality(cam.ex.metric, raw);
-    const out = cam.counter.update(now, lmPx, q, W, H);
+    const wl = res.worldLandmarks && res.worldLandmarks[0];
+    const post = wl ? posture3D(wl, lmPx, W, H) : undefined;
+    const out = cam.counter.update(now, lmPx, q, W, H, post);
     if (out.visible) cam.lastVisible = now;
 
     handleGate(out, now);
-    REC.frame(now, raw, q, out.state);
+    REC.frame(now, raw, q, out.state, wl, lastMotion);
     if (out.rep) onRep(now, out);
     const pr = cam.counter.progress(); $('#rom').style.height = pr == null || out.state !== 'armed' ? '0%' : Math.round(Math.max(0, Math.min(1, pr)) * 100) + '%';
   }
@@ -1047,7 +1069,8 @@ function handleGate(out, now) {
   if (out.disarmed) REC.ev('disarmed', out.reason);
   if (out.disarmed) {
     cam.gateState = 'search'; cam.searchSince = now; cam.hintT = now;
-    if (cam.phase === 'set') say('Te perdí de vista.', true);
+    if (out.reason === 'wrongPosture') { cam.hintT = now; say(gateMsg(out) + '.', true); }
+    else if (cam.phase === 'set') say('Te perdí de vista.', true);
   }
   if (out.state === 'search' && !cam.nextEx && cam.phase !== 'set' && cam.phase !== 'done' && (cam.phase === 'wait' || restOver(now))) {
     const wait = out.reason === 'wrongPosture' ? 2500 : 5000;
@@ -1057,7 +1080,7 @@ function handleGate(out, now) {
     cam.dbgT = now; const d = cam.counter.debug(), f2 = (x, n) => x == null || !isFinite(x) ? '—' : x.toFixed(n);
     const BY = { still: 'por quietud', template: 'por posición aprendida', manual: 'manual', pattern: 'por patrón' };
     $('#diag').textContent = (d.state === 'armed' ? 'contando ' + (BY[d.by] || '') : 'buscando posición') + '\nposición ' + (d.template ? f2(d.dist, 2) + ' / ' + d.tol : 'sin aprender') +
-      '\nmovimiento ' + f2(d.motion, 3) + '\nvalor ' + f2(d.value, 1) + '  rango ' + f2(d.range, 1) + ' / mín ' + f2(d.minRange, 1) + '\nreps ' + curReps() + '\ngiro ' + currentRot() + '° (' + (S.settings.rotMode === 'manual' ? 'manual' : lastMotion ? 'gravedad' : 'sin sensor') + ') · postura ' + (cam.counter.postureNow || '—');
+      '\nmovimiento ' + f2(d.motion, 3) + '\nvalor ' + f2(d.value, 1) + '  rango ' + f2(d.range, 1) + ' / mín ' + f2(d.minRange, 1) + '\nreps ' + curReps() + '\ngiro ' + currentRot() + '° (' + (S.settings.rotMode === 'manual' ? 'manual' : lastMotion ? 'gravedad' : 'sin sensor') + ') · postura ' + (cam.counter.postureNow || '—') + (cam.p3 ? '\n3D tronco ' + Math.round(cam.p3.torso ?? NaN) + '° muslo ' + Math.round(cam.p3.thigh ?? NaN) + '° canilla ' + Math.round(cam.p3.shin ?? NaN) + '° · z ' + (S.settings.zSign == null ? 'calibrando' : S.settings.zSign) : '');
   }
 }
 $('#cam-arm').onclick = () => { const now = performance.now(); if (cam.counter && cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); REC.ev('manualArm'); } };
@@ -1297,13 +1320,18 @@ const REC = (() => {
       t0 = performance.now(); lastT = 0;
       cur = { id: 'r' + Date.now().toString(36), startedAt: new Date().toISOString(), exId: ex.id, exName: ex.name, pattern: ex.pattern, metric: ex.metric,
         startHigh: ex.startHigh, repMin: ex.repMin, repMax: ex.repMax, facing: S.settings.facing, model: S.settings.model, countMode: S.settings.countMode,
-        video: currentRot() % 180 ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight], rot: currentRot(), ua: navigator.userAgent, joints: J, frames: [], events: [] };
+        video: currentRot() % 180 ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight], rot: currentRot(), ua: navigator.userAgent, joints: J, frames: [], events: [], w3: [], grav: [], screenAngle: (screen.orientation && screen.orientation.angle) || 0 };
     },
-    frame(now, raw, q, state) {
+    frame(now, raw, q, state, wl, g) {
       if (!cur || now - lastT < 66) return; lastT = now;
       const row = [Math.round(now - t0), Math.round((q || 0) * 100), state === 'armed' ? 1 : 0];
       if (raw) for (const i of J) { const p = raw[i]; row.push(Math.round(p.x * 1000), Math.round(p.y * 1000), Math.round((p.visibility ?? 0) * 100)); }
       cur.frames.push(row);
+      // esqueleto 3D (mm) y gravedad, en paralelo a frames
+      const w3 = [];
+      if (wl) for (const i of J) { const p = wl[i]; w3.push(Math.round(p.x * 1000), Math.round(p.y * 1000), Math.round(p.z * 1000)); }
+      cur.w3.push(w3.length ? w3 : null);
+      cur.grav.push(g ? [Math.round(g.x * 100), Math.round(g.y * 100), Math.round(g.z * 100)] : null);
     },
     ev(type, data) { if (cur) cur.events.push([Math.round(performance.now() - t0), type, data ?? null]); },
     async stop() {
@@ -1442,7 +1470,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 11;
+const APP_VER = 12;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {

@@ -286,6 +286,48 @@
     if (!sh) return null;
     return Math.atan2(sh.x - hip.x, hip.y - sh.y) * 180 / Math.PI;
   }
+  // ---------- postura 3D con gravedad ----------
+  // wl: esqueleto 3D del detector (metros, x derecha, y abajo, z profundidad); up: vector "arriba" del mundo en esos ejes.
+  // Mide la inclinación REAL de tronco, muslo y canilla: no depende de la altura ni del ángulo de la cámara.
+  function vsub(a, b) { return [a.x - b.x, a.y - b.y, a.z - b.z]; }
+  function vang(v, u) { const n = Math.hypot(v[0], v[1], v[2]) * Math.hypot(u[0], u[1], u[2]); if (!n) return null; return Math.acos(Math.max(-1, Math.min(1, (v[0] * u[0] + v[1] * u[1] + v[2] * u[2]) / n))) * 180 / Math.PI; }
+  function posture3DFeatures(wl, vis, up) {
+    if (!wl) return null;
+    const ok = function (i) { return vis(i) && wl[i]; };
+    const midw = function (a, b) { return { x: (wl[a].x + wl[b].x) / 2, y: (wl[a].y + wl[b].y) / 2, z: (wl[a].z + wl[b].z) / 2 }; };
+    const down = [-up[0], -up[1], -up[2]];
+    const f = {};
+    let sh = null, hp = null;
+    if (ok(11) && ok(12)) sh = midw(11, 12); else if (ok(11)) sh = wl[11]; else if (ok(12)) sh = wl[12];
+    if (ok(23) && ok(24)) hp = midw(23, 24); else if (ok(23)) hp = wl[23]; else if (ok(24)) hp = wl[24];
+    if (sh && hp) f.torso = vang(vsub(sh, hp), up);
+    ['L', 'R'].forEach(function (k) {
+      const S = SIDE[k];
+      if (ok(S.hip) && ok(S.kn)) { const a = vang(vsub(wl[S.kn], wl[S.hip]), down); if (a != null) f.thigh = f.thigh == null ? a : Math.min(f.thigh, a); }
+      if (ok(S.kn) && ok(S.an)) { const a = vang(vsub(wl[S.an], wl[S.kn]), down); if (a != null) f.shin = f.shin == null ? a : Math.min(f.shin, a); }
+    });
+    return f;
+  }
+  function classifyPosture3D(f) {
+    if (!f || f.torso == null) return null;
+    const T = f.torso;
+    if (T > 120) return 'inverted';
+    if (T >= 60) return 'lying';
+    if (T > 35) return 'bent';
+    if (f.thigh == null) return 'upright';
+    if (f.thigh > 55) return 'seated';                   // muslo cerca de horizontal
+    if (f.shin != null && f.shin > 55) return 'kneeling'; // muslo vertical, canilla horizontal
+    return 'standing';
+  }
+  // "arriba" del mundo en los ejes de la imagen que analiza el detector
+  // g: gravedad del teléfono (accelerationIncludingGravity, apunta hacia arriba); a: ángulo de pantalla; r: giro aplicado; zs: signo del eje de profundidad
+  function upVector(g, a, r, zs) {
+    if (!g) return [0, -1, 0];
+    const n = Math.hypot(g.x, g.y, g.z) || 1, s = Math.hypot(g.x, g.y) / n;
+    const phi = (Math.atan2(g.x, g.y) * 180 / Math.PI - a + r) * Math.PI / 180;
+    return [Math.sin(phi) * s, -Math.cos(phi) * s, -(g.z / n) * zs];
+  }
+
   // solo bloquea contradicciones claras: acostado vs erguido, o imagen invertida
   function postureCompatible(P, E) {
     if (!E || P == null) return true;
@@ -411,7 +453,7 @@
   }
   RepCounter.prototype.resetTrackers = function () { this.base = this.reps; for (const k in this.sides) this.sides[k].reset(); };
   RepCounter.prototype.arm = function (t, by) {
-    this.state = 'armed'; this.armedBy = by; this.since = null; this.awaySince = null; this.resetTrackers();
+    this.state = 'armed'; this.armedBy = by; this.since = null; this.awaySince = null; this.badPostSince = null; this.resetTrackers();
     this.armPose = meanPose(this.recent.slice(-15).map(function (r) { return r.v; }));
   };
   RepCounter.prototype.smoothPose = function () { return meanPose(this.recent.slice(-8).map(function (r) { return r.v; })); };
@@ -422,7 +464,7 @@
     const mx = W * 0.02, my = H * 0.02;
     return lm.map(function (p) { return p && (p.x < -mx || p.x > W + mx || p.y < -my || p.y > H + my) ? { x: p.x, y: p.y, visibility: 0 } : p; });
   }
-  RepCounter.prototype.update = function (t, lm, quality, W, H) {
+  RepCounter.prototype.update = function (t, lm, quality, W, H, post3d) {
     lm = clipToFrame(lm, W, H);
     const out = { visible: false, rep: false, armed: false, disarmed: false };
     const see = quality == null ? !!lm : quality >= 0.5;
@@ -443,7 +485,7 @@
     } else { this.posBuf = []; this.motion = null; }
     if (v) { this.recent.push({ t: t, v: v }); if (this.recent.length > 30) this.recent.shift(); }
 
-    this.postureNow = this.posture.push(see && f ? classifyPosture(f) : null);
+    this.postureNow = this.posture.push(post3d !== undefined ? post3d : (see && f ? classifyPosture(f) : null));
     const postureOk = postureCompatible(this.postureNow, this.expected);
     if (this.state === 'search') {
       this.reason = !see ? 'camera' : !postureOk ? 'wrongPosture' : 'posture';
@@ -463,6 +505,10 @@
       else this.since = null;
     } else if (this.lastVisibleT == null || t - this.lastVisibleT > 1500) {
       this.state = 'search'; this.since = null; this.reason = 'camera'; out.disarmed = true;
+    } else if (!postureOk) {
+      // postura claramente incompatible con el ejercicio (ej.: de pie en press banca): deja de contar
+      if (this.badPostSince == null) this.badPostSince = t;
+      if (t - this.badPostSince > 2000) { this.state = 'search'; this.since = null; this.badPostSince = null; this.reason = 'wrongPosture'; out.disarmed = true; }
     } else if (this.template && v && !this.always) {
       // quieto pero lejos de la posición aprendida (descansando, estirando): deja de contar
       this.dist = poseDistance(this.smoothPose(), this.template);
@@ -674,7 +720,7 @@
   const api = { PLAN: PLAN, DAYS: DAYS, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
-    jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
+    jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, posture3DFeatures: posture3DFeatures, classifyPosture3D: classifyPosture3D, upVector: upVector, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
     SensorCounter: SensorCounter, Rhythm: Rhythm, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -29,7 +29,8 @@ Verte en grande (recomendado)
 - En la cámara toca "Modo TV": la app pasa a pantalla completa en horizontal (la imagen queda derecha en el TV). Toca la imagen para salir.
 - Botón de cámara (arriba a la derecha): muestra una miniatura de cada cámara del teléfono. Si aparece el gran angular, elígelo.
 - La imagen se endereza sola según el sensor de gravedad del teléfono (funciona aunque la rotación esté bloqueada). "Girar imagen" pasa a modo manual; para volver: Ajustes → Orientación de la imagen → Automática.
-- La app muestra tu postura (de pie, sentado, acostado, inclinado) y no cuenta si no corresponde al ejercicio (ej.: de pie en press banca).
+- La app muestra tu postura (de pie, sentado, acostado, inclinado, arrodillado) usando el esqueleto 3D y el sensor de gravedad: funciona aunque la cámara esté alta e inclinada. No cuenta si la postura no corresponde al ejercicio (ej.: de pie en press banca).
+- Los primeros segundos con la cámara la app se calibra sola: quédate de pie, con las piernas visibles.
 - Así puedes usar la cámara TRASERA (detecta mucho mejor que la frontal) y igual verte.
 
 Discos
