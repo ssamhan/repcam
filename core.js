@@ -184,6 +184,9 @@
         f.kneeMin = f.kneeMin == null ? kn : Math.min(f.kneeMin, kn);
       }
       if (f.hip == null && v(S.sh) && v(S.hip) && v(S.kn)) f.hip = angle(lm[S.sh], lm[S.hip], lm[S.kn]);
+      // cuánto "baja" el muslo y la canilla en la imagen (relativo al tronco): no depende del ángulo de cámara
+      if (f.torsoLen && v(S.hip) && v(S.kn)) { const tv = (lm[S.kn].y - lm[S.hip].y) / f.torsoLen; f.thighV = f.thighV == null ? tv : Math.max(f.thighV, tv); }
+      if (f.torsoLen && v(S.kn) && v(S.an)) { const sv = (lm[S.an].y - lm[S.kn].y) / f.torsoLen; f.shinV = f.shinV == null ? sv : Math.max(f.shinV, sv); }
     });
     // distancia entre muñecas: solo con vista de frente (con vista de lado los hombros se superponen y el valor es ruido)
     if (v(11) && v(12) && v(15) && v(16)) { const sw = dist(lm[11], lm[12]); if (sw && (!f.torsoLen || sw / f.torsoLen > 0.3)) f.wristDist = dist(lm[15], lm[16]) / sw; }
@@ -252,6 +255,56 @@
     crunch: { start: function (f) { return lt(f.kneeMin, 120) && lt(f.torso, 35) && anyArm(f, function (a) { return lt(a.wrRel, 0.3); }); },
              hold: function (f) { return lt(f.kneeMin, 130); },
              say: 'Arrodíllate con la cuerda junto a la cabeza' },
+  };
+
+  // ---------- postura del cuerpo: de pie, sentado, acostado, inclinado, arrodillado ----------
+  function classifyPosture(f) {
+    if (!f || f.torso == null) return null;
+    const T = f.torso;
+    if (T > 120) return 'inverted';                         // cabeza bajo la cadera: imagen al revés
+    if (T >= 60) return 'lying';
+    if (T > 35) return 'bent';
+    // tronco vertical: lo decide cuánto bajan muslo y canilla
+    if (f.thighV == null) return 'upright';                 // piernas fuera de cuadro: erguido, sin saber si de pie o sentado
+    if (f.thighV < 0.45) return 'seated';
+    if (f.shinV != null && f.shinV < 0.35) return 'kneeling';
+    return 'standing';
+  }
+  const POSTURE_NAME = { standing: 'de pie', seated: 'sentado', lying: 'acostado', bent: 'inclinado', kneeling: 'arrodillado', inverted: 'imagen invertida', upright: 'erguido (no veo tus piernas)' };
+  // posturas válidas para empezar cada ejercicio
+  const EXPECTED = { e1: ['lying'], e2: ['bent'], e3: ['seated'], e4: ['kneeling', 'seated', 'standing'], e5: ['standing'], e6: ['standing'], e7: ['standing'],
+    e8: ['standing'], e9: ['standing'], e10: ['standing'], e11: ['lying'], e12: ['standing'], e13: ['lying', 'bent'], e14: ['standing'], e15: ['seated'],
+    e16: ['standing'], e17: ['standing', 'bent'], e18: ['standing'], e19: ['bent'], e20: ['seated', 'kneeling', 'bent'], e21: ['standing'],
+    e22: ['seated', 'bent', 'lying'], e23: ['standing'], e24: ['lying', 'bent', 'seated'], e25: ['standing'], e26: ['lying'], e27: ['seated'], e28: ['seated'], e29: ['kneeling'] };
+  const POSTURE_SAY = { standing: 'Párate', seated: 'Siéntate', lying: 'Acuéstate', bent: 'Inclínate', kneeling: 'Arrodíllate' };
+  // dirección del tronco en la imagen (cadera → hombros): 0 = hacia arriba, 90 = hacia la derecha, ±180 = abajo
+  function torsoDirection(lm) {
+    const v = function (i) { return lm[i] && (lm[i].visibility ?? 1) >= VIS; };
+    let sh = null, hip = null;
+    if (v(11) && v(12) && v(23) && v(24)) { sh = mid(lm[11], lm[12]); hip = mid(lm[23], lm[24]); }
+    else ['L', 'R'].forEach(function (k) { const S = SIDE[k]; if (!sh && v(S.sh) && v(S.hip)) { sh = lm[S.sh]; hip = lm[S.hip]; } });
+    if (!sh) return null;
+    return Math.atan2(sh.x - hip.x, hip.y - sh.y) * 180 / Math.PI;
+  }
+  // solo bloquea contradicciones claras: acostado vs erguido, o imagen invertida
+  function postureCompatible(P, E) {
+    if (!E || P == null) return true;
+    if (P === 'inverted') return false;
+    const vertical = P === 'standing' || P === 'seated' || P === 'kneeling' || P === 'upright';
+    const lyingOnly = E.every(function (x) { return x === 'lying'; });
+    const noLying = E.indexOf('lying') < 0;
+    if (lyingOnly && vertical) return false;
+    if (noLying && P === 'lying') return false;
+    return true;
+  }
+  // voto de mayoría sobre ~1 s para que la postura no "parpadee"
+  function PostureTracker() { this.buf = []; this.current = null; }
+  PostureTracker.prototype.push = function (p) {
+    this.buf.push(p); if (this.buf.length > 20) this.buf.shift();
+    const cnt = {}; let best = null, bn = 0;
+    this.buf.forEach(function (x) { if (!x) return; cnt[x] = (cnt[x] || 0) + 1; if (cnt[x] > bn) { bn = cnt[x]; best = x; } });
+    if (best && bn >= this.buf.length * 0.6) this.current = best;
+    return this.current;
   };
 
   // ---------- firma de postura aprendida ----------
@@ -353,6 +406,7 @@
     this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0; this.lastRep = null; this.rejected = 0;
     this.rhythm = new Rhythm(); this.romRef = opts.romRef || null; this.lastRom = null; this.romLog = [];
     this.state = 'search'; this.since = null; this.reason = 'camera';
+    this.expected = EXPECTED[ex.id] || null; this.posture = new PostureTracker(); this.postureNow = null;
     this.motion = null; this.posBuf = []; this.recent = []; this.armPose = null; this.dist = null; this.armedBy = null;
   }
   RepCounter.prototype.resetTrackers = function () { this.base = this.reps; for (const k in this.sides) this.sides[k].reset(); };
@@ -362,7 +416,14 @@
   };
   RepCounter.prototype.smoothPose = function () { return meanPose(this.recent.slice(-8).map(function (r) { return r.v; })); };
   RepCounter.prototype.manualArm = function (t) { if (this.state !== 'armed') { this.arm(t, 'manual'); return true; } return false; };
-  RepCounter.prototype.update = function (t, lm, quality) {
+  // puntos fuera de la imagen: el detector los "inventa"; se marcan como no visibles
+  function clipToFrame(lm, W, H) {
+    if (!lm || !W || !H) return lm;
+    const mx = W * 0.02, my = H * 0.02;
+    return lm.map(function (p) { return p && (p.x < -mx || p.x > W + mx || p.y < -my || p.y > H + my) ? { x: p.x, y: p.y, visibility: 0 } : p; });
+  }
+  RepCounter.prototype.update = function (t, lm, quality, W, H) {
+    lm = clipToFrame(lm, W, H);
     const out = { visible: false, rep: false, armed: false, disarmed: false };
     const see = quality == null ? !!lm : quality >= 0.5;
     if (see) { this.lastVisibleT = t; out.visible = true; }
@@ -382,10 +443,12 @@
     } else { this.posBuf = []; this.motion = null; }
     if (v) { this.recent.push({ t: t, v: v }); if (this.recent.length > 30) this.recent.shift(); }
 
+    this.postureNow = this.posture.push(see && f ? classifyPosture(f) : null);
+    const postureOk = postureCompatible(this.postureNow, this.expected);
     if (this.state === 'search') {
-      this.reason = !see ? 'camera' : 'posture';
+      this.reason = !see ? 'camera' : !postureOk ? 'wrongPosture' : 'posture';
       let ok = false, need = 700, by = null;
-      if (see && v) {
+      if (see && v && postureOk) {
         if (this.always) { ok = true; need = 300; by = 'auto'; }
         else if (this.template) {
           this.dist = poseDistance(this.smoothPose(), this.template);
@@ -611,7 +674,7 @@
   const api = { PLAN: PLAN, DAYS: DAYS, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
-    jointsFor: jointsFor, detectionQuality: detectionQuality, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
+    jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
     SensorCounter: SensorCounter, Rhythm: Rhythm, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

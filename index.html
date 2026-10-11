@@ -50,6 +50,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01e
 .brand { font-family: var(--display); font-size: 26px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .brand i { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); display: inline-block; position: relative; }
 .brand i::after { content: ""; position: absolute; inset: 9px 3px; background: var(--accent-ink); border-radius: 2px; }
+.brand .ver { font: 600 12px var(--body); color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 1px 7px; }
 .weekchip { font-size: 13px; color: var(--muted); text-align: right; line-height: 1.25; }
 .weekchip b { color: var(--fg); font-weight: 600; }
 .weekchip .dl { color: var(--warn); font-weight: 600; }
@@ -157,6 +158,8 @@ input[type="date"], select { font-size: 16px; }
 /* cámara */
 .cam { position: fixed; inset: 0; background: #000; z-index: 20; display: flex; flex-direction: column; color: #fff; }
 .cam .stage { position: relative; flex: 1; overflow: hidden; }
+.cam canvas.rotcv { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.cam.mirror canvas.rotcv { transform: scaleX(-1); }
 .cam video, .cam canvas.ov { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .cam .stage { background: #000; }
 .cam.mirror video, .cam.mirror canvas.ov { transform: scaleX(-1); }
@@ -240,7 +243,7 @@ input[type="date"], select { font-size: 16px; }
 .ctlrow { display: grid; grid-template-columns: 64px 64px 1fr; gap: 8px; }
 .ctlrow .btn { padding: 14px 0; font-size: 20px; }
 .ctlrow .btn.primary { font-size: 16px; }
-.cam-open .toast { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 116px); }
+.cam-open .toast { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 300px); }
 .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 60; max-width: 90%; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .rom i { transition: none; } }
 @media (max-width: 380px) { .demo { grid-template-columns: 1fr; justify-items: center; } .specs b { font-size: 19px; } }
@@ -249,7 +252,7 @@ input[type="date"], select { font-size: 16px; }
 <body>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam</div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v10</small></div>
     <div class="weekchip" id="weekchip"></div>
   </header>
 
@@ -300,6 +303,7 @@ input[type="date"], select { font-size: 16px; }
         <h3>Datos</h3>
         <p class="note">Todo se guarda solo en este teléfono. Haz una copia de seguridad de vez en cuando.</p>
         <div class="row">
+          <button class="btn primary small" id="btn-update">Buscar actualización</button>
           <button class="btn ghost small" id="btn-restore">Restaurar copia</button>
           <button class="btn ghost small" id="btn-resetplan">Volver a las series originales</button>
         </div>
@@ -343,6 +347,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="cam" id="cam" hidden>
   <div class="stage">
     <video id="video" playsinline muted></video>
+    <canvas id="rotcv" class="rotcv" hidden></canvas>
     <canvas class="ov" id="overlay"></canvas>
     <div class="hud-top">
       <button class="iconbtn" id="cam-close" aria-label="Cerrar cámara"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
@@ -354,6 +359,8 @@ input[type="date"], select { font-size: 16px; }
       <button class="iconbtn" id="cam-voice" aria-label="Voz" aria-pressed="true" style="width:36px;height:36px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
       <button class="skipex" id="cam-skipex" hidden>Saltar ejercicio ›</button>
       <button class="skipex" id="cam-clean" aria-pressed="false">Modo TV</button>
+      <button class="skipex" id="cam-rot">Girar imagen</button>
+      <span class="qual" id="cam-post" hidden></span>
       <label class="zoom" id="zoomwrap" hidden>Zoom <input type="range" id="cam-zoom" aria-label="Zoom de la cámara"><b class="num" id="zoomval">1×</b></label>
     </div>
     <div class="counter"><div class="reps num" id="cam-reps">0</div><div class="lbl">reps<b class="num" id="cam-set">Serie 1/4</b></div></div>
@@ -427,7 +434,7 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="core.js"></script>
+<script src="core.js?v=10"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -438,7 +445,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const KEY = 'repcam.v1';
 function defaults() {
   return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {}, romRef: {}, romRefS: {}, plates: null, bars: null,
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true } };
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0 } };
 }
 let S = defaults();
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(defaults(), JSON.parse(raw)); S.settings = Object.assign(defaults().settings, S.settings); } catch (e) { /* sin almacenamiento */ }
@@ -921,6 +928,16 @@ function drawPose(lm, W, H, needed) {
   }
 }
 
+// imagen girada: se rota cada cuadro en un canvas antes de detectar (no depende de la rotación de Android)
+function rotSource(v) {
+  const rot = ((S.settings.rot || 0) % 360 + 360) % 360, cv = $('#rotcv');
+  if (!rot) { if (!cv.hidden) { cv.hidden = true; v.style.visibility = ''; } return v; }
+  const vw = v.videoWidth, vh = v.videoHeight, W = rot % 180 ? vh : vw, H = rot % 180 ? vw : vh;
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const c = cv.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.translate(W / 2, H / 2); c.rotate(rot * Math.PI / 180); c.drawImage(v, -vw / 2, -vh / 2);
+  if (cv.hidden) { cv.hidden = false; v.style.visibility = 'hidden'; }
+  return cv;
+}
 function loop() {
   camRaf = requestAnimationFrame(loop);
   const v = $('#video'); if (!landmarker || v.readyState < 2) return;
@@ -928,14 +945,17 @@ function loop() {
   let lmPx = null, raw = null;
   if (v.currentTime !== cam.lastVideoT) {
     cam.lastVideoT = v.currentTime;
-    const res = landmarker.detectForVideo(v, now);
+    const src = rotSource(v);
+    const res = landmarker.detectForVideo(src, now);
     raw = res.landmarks && res.landmarks[0];
-    const W = v.videoWidth, H = v.videoHeight;
+    const W = src.videoWidth || src.width, H = src.videoHeight || src.height;
+    cam.frameW = W; cam.frameH = H;
     if (raw) lmPx = raw.map((p) => ({ x: p.x * W, y: p.y * H, visibility: p.visibility }));
     drawPose(raw, W, H, cam.needed);
     const q = C.detectionQuality(cam.ex.metric, raw);
-    const out = cam.counter.update(now, lmPx, q);
+    const out = cam.counter.update(now, lmPx, q, W, H);
     if (out.visible) cam.lastVisible = now;
+    autoRotate(lmPx, now);
     handleGate(out, now);
     REC.frame(now, raw, q, out.state);
     if (out.rep) onRep(now, out);
@@ -943,6 +963,22 @@ function loop() {
   }
   tick(now);
 }
+// si un ejercicio de pie o sentado se ve con el tronco de lado o al revés, la imagen está girada: se corrige sola
+function autoRotate(lm, now) {
+  const E = C.EXPECTED[cam.ex.id]; if (!lm || !E || E.indexOf('lying') >= 0 || cam.phase === 'set') { cam.rotVotes = []; return; }
+  const d = C.torsoDirection(lm); if (d == null) return;
+  cam.rotVotes = cam.rotVotes || []; cam.rotVotes.push(d); if (cam.rotVotes.length > 45) cam.rotVotes.shift();
+  if (cam.rotVotes.length < 45 || now - (cam.rotFixT || 0) < 6000) return;
+  const fix = (x) => (Math.abs(x) < 35 ? 0 : Math.abs(x) > 145 ? 180 : x > 0 ? 270 : 90);   // giro que deja el tronco vertical
+  const votes = cam.rotVotes.map(fix); const f = votes[0];
+  if (f !== 0 && votes.every((x) => x === f)) {
+    cam.rotFixT = now; cam.rotVotes = [];
+    S.settings.rot = ((S.settings.rot || 0) + f) % 360; save();
+    if (cam.counter) { cam.counter.template = null; cam.counter.state = 'search'; }
+    say('La imagen estaba girada. Ya la corregí.', true); toast('Imagen girada ' + f + '° automáticamente');
+  }
+}
+$('#cam-rot').onclick = () => { S.settings.rot = ((S.settings.rot || 0) + 90) % 360; save(); cam.rotVotes = []; cam.rotFixT = performance.now(); if (cam.counter) cam.counter.template = null; toast('Imagen girada ' + S.settings.rot + '°'); };
 function tick(now) {
   // fin automático de serie
   if (cam.phase === 'set') {
@@ -960,6 +996,11 @@ function gateMsg(out) {
     return cam.counter.paused ? 'Descansando · cuenta al final del descanso' : 'Quédate quieto en la posición de inicio';
   }
   if (out.reason === 'camera') return 'Ajusta la cámara: no veo ' + C.JOINT_HELP[cam.ex.metric];
+  if (out.reason === 'wrongPosture') {
+    const P = cam.counter.postureNow, E = C.EXPECTED[cam.ex.id] || [];
+    if (P === 'inverted') return 'La imagen está al revés: toca Girar imagen';
+    return 'Te veo ' + C.POSTURE_NAME[P] + '. ' + (C.POSTURE_SAY[E[0]] || 'Ponte en posición') + ' para este ejercicio';
+  }
   return cam.counter.template ? 'Vuelve a tu posición de inicio y quédate quieto' : 'Ponte en la posición de inicio y quédate quieto un segundo';
 }
 function onArmed(now, manual) {
@@ -977,8 +1018,14 @@ function handleGate(out, now) {
   else if (cam.phase === 'done') { cls = 'qual good'; txt = 'Entrenamiento terminado'; }
   else if (out.state === 'armed') { cls = 'qual good'; txt = 'En posición · contando'; }
   else if (out.reason === 'camera') { cls = 'qual bad'; txt = gateMsg(out); }
+  else if (out.reason === 'wrongPosture') { cls = 'qual bad'; txt = gateMsg(out); }
   else { const hp = cam.counter.holdProgress(now); cls = 'qual mid'; txt = hp > 0 ? 'Mantén la posición… ' + Math.round(hp * 100) + '%' : gateMsg(out); }
   if (el.className !== cls || el.textContent !== txt) { el.className = cls; el.textContent = txt; }
+  if (S.settings.mode !== 'sensor' && cam.counter.postureNow !== undefined) {
+    const pp = $('#cam-post'), P = cam.counter.postureNow;
+    const ptxt = P ? 'Postura: ' + C.POSTURE_NAME[P] : '';
+    if (pp.textContent !== ptxt) { pp.textContent = ptxt; pp.hidden = !P; pp.className = 'qual ' + (C.postureCompatible(P, C.EXPECTED[cam.ex.id]) ? 'good' : 'bad'); }
+  }
   $('#cam-arm').hidden = out.state === 'armed';
   if (out.armed && !cam.nextEx) { onArmed(now, false); REC.ev('armed', cam.counter.armedBy); }
   if (out.disarmed) REC.ev('disarmed', out.reason);
@@ -987,7 +1034,8 @@ function handleGate(out, now) {
     if (cam.phase === 'set') say('Te perdí de vista.', true);
   }
   if (out.state === 'search' && !cam.nextEx && cam.phase !== 'set' && cam.phase !== 'done' && (cam.phase === 'wait' || restOver(now))) {
-    if (now - cam.searchSince > 5000 && now - cam.hintT > 10000) { cam.hintT = now; say(gateMsg(out) + '.', true); }
+    const wait = out.reason === 'wrongPosture' ? 2500 : 5000;
+    if (now - cam.searchSince > wait && now - cam.hintT > 10000) { cam.hintT = now; say(gateMsg(out) + '.', true); }
   }
   if (S.settings.debug && now - (cam.dbgT || 0) > 250) {
     cam.dbgT = now; const d = cam.counter.debug(), f2 = (x, n) => x == null || !isFinite(x) ? '—' : x.toFixed(n);
@@ -1233,7 +1281,7 @@ const REC = (() => {
       t0 = performance.now(); lastT = 0;
       cur = { id: 'r' + Date.now().toString(36), startedAt: new Date().toISOString(), exId: ex.id, exName: ex.name, pattern: ex.pattern, metric: ex.metric,
         startHigh: ex.startHigh, repMin: ex.repMin, repMax: ex.repMax, facing: S.settings.facing, model: S.settings.model, countMode: S.settings.countMode,
-        video: [video.videoWidth, video.videoHeight], ua: navigator.userAgent, joints: J, frames: [], events: [] };
+        video: (S.settings.rot || 0) % 180 ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight], rot: S.settings.rot || 0, ua: navigator.userAgent, joints: J, frames: [], events: [] };
     },
     frame(now, raw, q, state) {
       if (!cur || now - lastT < 66) return; lastT = now;
@@ -1377,6 +1425,15 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
+const APP_VER = 10;
+$('#btn-update').onclick = async () => {
+  toast('Buscando la versión nueva…');
+  try {
+    if ('serviceWorker' in navigator) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+    if (window.caches) for (const k of await caches.keys()) if (k.startsWith('repcam')) await caches.delete(k);
+  } catch (e) {}
+  location.replace(location.pathname + '?u=' + Date.now());
+};
 loadSettings(); renderToday();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
