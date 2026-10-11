@@ -322,7 +322,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v18</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v20</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -523,6 +523,24 @@ input[type="date"], select { font-size: 16px; }
   </div>
 </div>
 
+<!-- cuenta en el servidor -->
+<div class="login" id="cloudlogin" hidden>
+  <div class="loginbox">
+    <div class="brand"><i></i>RepCam</div>
+    <h2 id="cl-title">Inicia sesión</h2>
+    <div id="cl-form" style="display:flex;flex-direction:column;gap:12px">
+      <label class="f" id="cl-namef" hidden>Nombre<input id="cl-name" type="text" autocomplete="name" maxlength="40" style="font-size:16px"></label>
+      <label class="f">Correo<input id="cl-email" type="email" autocomplete="email" style="font-size:16px"></label>
+      <label class="f">Contraseña<input id="cl-pass" type="password" autocomplete="current-password" style="font-size:16px"></label>
+      <button class="btn primary" id="cl-go">Entrar</button>
+      <div class="row"><button class="btn ghost small" id="cl-toggle">Crear cuenta</button><button class="btn ghost small" id="cl-forgot">Olvidé mi contraseña</button></div>
+    </div>
+    <p class="note" id="cl-msg"></p>
+    <div class="row" id="cl-verify" hidden><button class="btn primary small" id="cl-verified">Ya abrí el enlace</button><button class="btn ghost small" id="cl-resend">Reenviar correo</button><button class="btn ghost small" id="cl-out">Salir</button></div>
+    <p class="note">Tu cuenta, tu perfil y tu plan se guardan en el servidor de RepCam, que administra <span id="cl-owner"></span>. Tus series, pesos, descansos y grabaciones quedan solo en tu teléfono.</p>
+  </div>
+</div>
+
 <!-- personas -->
 <div class="login" id="login" hidden>
   <div class="loginbox">
@@ -532,7 +550,7 @@ input[type="date"], select { font-size: 16px; }
     <div id="pinbox" hidden><label class="f">PIN de <span id="pinname"></span><input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></label><div class="row"><button class="btn ghost" id="pin-cancel">Volver</button><button class="btn primary" id="pin-ok">Entrar</button></div></div>
     <div id="newbox" hidden><label class="f">Nombre<input id="newname" type="text" maxlength="40" autocomplete="off"></label><p class="note" id="newnote"></p><div class="row"><button class="btn ghost" id="new-cancel">Cancelar</button><button class="btn primary" id="new-ok">Crear</button></div></div>
     <p class="note" id="loginmsg"></p>
-    <div class="row" id="loginacts"><button class="btn ghost" id="btn-adduser">+ Agregar persona</button><button class="btn ghost" id="login-close" hidden>Cerrar</button></div>
+    <div class="row" id="loginacts"><button class="btn ghost" id="btn-adduser">+ Agregar persona</button><button class="btn ghost" id="login-close" hidden>Cerrar</button><button class="btn ghost" id="login-signout" hidden>Salir de esta cuenta</button></div>
   </div>
 </div>
 
@@ -540,19 +558,24 @@ input[type="date"], select { font-size: 16px; }
 <div class="modal" id="admin" hidden>
   <div class="box tall" role="dialog" aria-modal="true" aria-labelledby="ad-title">
     <h3 id="ad-title">Usuarios</h3>
+    <p class="note" id="ad-sum"></p>
     <label class="checkrow"><input type="checkbox" id="ad-signup"> Cualquiera puede crear su cuenta desde la pantalla de inicio</label>
+    <div id="ad-cloud" hidden><label class="f">Correos invitados (uno por línea; pueden crear cuenta aunque el registro esté cerrado)<textarea id="ad-invited" rows="3" style="font:400 15px var(--body);width:100%;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:8px"></textarea></label><button class="btn ghost small" id="ad-saveinv">Guardar invitaciones</button></div>
     <div class="liblist" id="ad-list"></div>
     <div class="row"><button class="btn ghost" id="ad-add">+ Crear cuenta</button><button class="btn primary" id="ad-close">Cerrar</button></div>
   </div>
 </div>
 <div class="modal" id="aduser" hidden>
-  <div class="box" role="dialog" aria-modal="true" aria-labelledby="au-title">
+  <div class="box tall" role="dialog" aria-modal="true" aria-labelledby="au-title">
     <h3 id="au-title">Usuario</h3>
     <div id="au-info" class="note"></div>
     <label class="f">Nombre<input id="au-name" type="text" maxlength="40" autocomplete="off" style="font-size:16px"></label>
     <div class="setting"><span>Rol</span><select id="au-role"><option value="user">Usuario</option><option value="admin">Administrador</option></select></div>
     <div class="setting"><span>Estado<small>Una cuenta desactivada no puede entrar</small></span><select id="au-active"><option value="1">Activa</option><option value="0">Desactivada</option></select></div>
     <div class="row"><button class="btn primary small" id="au-enter">Ver y editar su cuenta</button><button class="btn ghost small" id="au-reset">Quitar huella / PIN</button></div>
+    <div id="au-plan" class="note" hidden></div>
+    <div class="setting" id="au-assignrow"><span>Asignar plan<small>Lo recibe al abrir la app</small></span><select id="au-tpl"></select></div>
+    <button class="btn ghost small" id="au-assign">Asignar este plan</button>
     <div class="row"><button class="btn ghost small" id="au-export">Descargar sus datos</button><button class="btn danger small" id="au-del">Eliminar</button></div>
     <div class="row"><button class="btn ghost" id="au-cancel">Cerrar</button><button class="btn primary" id="au-save">Guardar</button></div>
   </div>
@@ -636,8 +659,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="core.js?v=18"></script>
-<script src="library.js?v=18"></script>
+<script src="config.js?v=20"></script>
+<script src="core.js?v=20"></script>
+<script src="library.js?v=20"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -690,7 +714,7 @@ function applyPlan() {
 }
 function enterUser(id) {
   U.cur = id; saveUsers(); try { sessionStorage.setItem('repcam.unlocked', id); if (isAdmin(curUser())) sessionStorage.setItem('repcam.adminAuth', id); } catch (e) {}
-  S = readUser(id); selDay = null; applyPlan(); selDay = C.dayKeyOf(new Date()) || (C.DAYS[0] && C.DAYS[0].key) || 'L';
+  S = readUser(id); if (CLOUD_ON && cloudDoc && curUser().cloudUid) mergeCloud(); selDay = null; applyPlan(); selDay = C.dayKeyOf(new Date()) || (C.DAYS[0] && C.DAYS[0].key) || 'L';
   REC.reset(); orderMode = false; $('#userchip').textContent = initials(curUser().name);
   loadSettings(); renderProfileNote(); refreshAll(); if (!$('#view-plan').hidden) renderPlan(); if (!$('#view-history').hidden) renderHistory();
   $('#login').hidden = true;
@@ -698,10 +722,11 @@ function enterUser(id) {
   const ad = adminAuth(), viewing = ad && ad.id !== id;
   $('#adminbar').hidden = !viewing; if (viewing) $('#adminbar-name').textContent = curUser().name;
   $('#admincard').hidden = !isAdmin(curUser());
-  if ($('#admincard') && isAdmin(curUser())) $('#admincount').textContent = U.list.length;
+  if ($('#admincard') && isAdmin(curUser())) $('#admincount').textContent = CLOUD_ON ? 'servidor' : U.list.length;
+  cloudPush();
 }
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-function save() { try { localStorage.setItem(dataKey(U.cur), JSON.stringify(S)); } catch (e) { toast('No se pudo guardar en este teléfono'); } }
+function save() { try { localStorage.setItem(dataKey(U.cur), JSON.stringify(S)); } catch (e) { toast('No se pudo guardar en este teléfono'); } cloudPush(); }
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
 const todayYmd = () => C.ymd(new Date());
@@ -1743,16 +1768,19 @@ async function bioCheck(u) {
 }
 async function pinHash(id, pin) { const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('repcam|' + id + '|' + pin)); return b64u.enc(d); }
 let loginTarget = null;
-function showLogin(canClose) {
-  $('#ulist').innerHTML = U.list.map((u) => '<button class="ubtn' + (u.id === U.cur && canClose ? ' cur' : '') + (u.active === false ? ' off' : '') + '" data-uid="' + u.id + '"><span class="av">' + esc(initials(u.name)) + '</span><span>' + (isAdmin(u) ? '<span class="role">Administrador</span><br>' : '') + esc(u.name) + '<br><small>' + (u.active === false ? 'Cuenta desactivada' : userSub(u)) + '</small></span><span>' + (u.lock === 'bio' ? '🔒 huella' : u.lock === 'pin' ? '🔒 PIN' : '') + '</span></button>').join('');
-  $('#btn-adduser').hidden = !U.allowSignup && !adminAuth();
+function showLogin(canClose, onlyId) {
+  const LST = onlyId ? U.list.filter((u) => u.id === onlyId) : U.list;
+  $('#ulist').innerHTML = LST.map((u) => '<button class="ubtn' + (u.id === U.cur && canClose ? ' cur' : '') + (u.active === false ? ' off' : '') + '" data-uid="' + u.id + '"><span class="av">' + esc(initials(u.name)) + '</span><span>' + (isAdmin(u) ? '<span class="role">Administrador</span><br>' : '') + esc(u.name) + '<br><small>' + (u.active === false ? 'Cuenta desactivada' : userSub(u)) + '</small></span><span>' + (u.lock === 'bio' ? '🔒 huella' : u.lock === 'pin' ? '🔒 PIN' : '') + '</span></button>').join('');
+  $('#btn-adduser').hidden = CLOUD_ON || !!onlyId || (!U.allowSignup && !adminAuth());
+  $('#login-signout').hidden = !(CLOUD_ON && onlyId);
   $('#pinbox').hidden = true; $('#newbox').hidden = true; $('#ulist').hidden = false; $('#loginacts').hidden = false; $('#loginmsg').textContent = '';
   $('#login-close').hidden = !canClose; $('#login').hidden = false;
 }
 function userSub(u) {
   try { const d = JSON.parse(localStorage.getItem(dataKey(u.id)) || '{}'); const n = (d.logs || []).length; return (d.plan ? esc(d.plan.name) : (u.id === 'u1' ? esc(C.DEFAULT_PLAN.name) : 'Sin plan')) + ' · ' + n + ' series'; } catch (e) { return ''; }
 }
-$('#userchip').onclick = () => showLogin(true);
+$('#userchip').onclick = () => { if (CLOUD_ON) { if (confirm('¿Cerrar la sesión de ' + curUser().name + ' para que entre otra persona? Tus datos quedan guardados.')) cloudSignOut(); } else showLogin(true); };
+$('#login-signout').onclick = () => cloudSignOut();
 $('#login-close').onclick = () => { $('#login').hidden = true; };
 $('#ulist').addEventListener('click', async (ev) => {
   const b = ev.target.closest('[data-uid]'); if (!b) return;
@@ -1790,8 +1818,8 @@ $('#new-ok').onclick = () => {
   document.querySelector('.tab[data-view="plan"]').click(); openEquip(true);
   toast('Hola ' + name.split(' ')[0] + ': marca tu equipo y elige un plan');
 };
-$('#btn-switchuser').onclick = () => showLogin(true);
-$('#pf-name').addEventListener('change', () => { const u = curUser(), n = $('#pf-name').value.trim(); if (!n) return; u.name = n; saveUsers(); $('#userchip').textContent = initials(n); toast('Nombre guardado'); });
+$('#btn-switchuser').onclick = () => $('#userchip').click();
+$('#pf-name').addEventListener('change', () => { const u = curUser(), n = $('#pf-name').value.trim(); if (!n) return; u.name = n; saveUsers(); cloudPush(); $('#userchip').textContent = initials(n); toast('Nombre guardado'); });
 $('#pf-lock').addEventListener('change', async () => {
   const u = curUser(), v = $('#pf-lock').value;
   if (v === 'bio') {
@@ -1804,6 +1832,117 @@ $('#pf-lock').addEventListener('change', async () => {
     u.pin = await pinHash(u.id, p); u.lock = 'pin'; delete u.cred; saveUsers(); toast('PIN activado');
   } else { u.lock = 'none'; delete u.cred; delete u.pin; saveUsers(); toast('Sin bloqueo'); }
 });
+
+// ---------- servidor central (cuentas, perfiles y planes) ----------
+// Con servidor: cada persona entra con su cuenta (correo y contraseña). Su perfil y su plan se guardan en el servidor;
+// las series, pesos, descansos y grabaciones quedan solo en el teléfono. El administrador ve a todos desde su cuenta.
+const CFG = window.REPCAM_CONFIG || {};
+const CLOUD_ON = !!(CFG.firebase || CFG.mock);
+let cloudUser = null, cloudDoc = null, pendingName = '', cloudT = null, clMode = 'in', cloudNew = false;
+const clean = (o) => JSON.parse(JSON.stringify(o));   // el servidor no acepta valores "undefined"
+function showCloudLogin(msg, busy) {
+  $('#cl-owner').textContent = CFG.ownerName || 'el administrador';
+  $('#cl-msg').textContent = msg || ''; $('#cl-form').hidden = !!busy; if (!busy) $('#cl-verify').hidden = true; $('#cloudlogin').hidden = false; $('#login').hidden = true;
+}
+function setClMode(m) {
+  clMode = m; $('#cl-title').textContent = m === 'up' ? 'Crea tu cuenta' : 'Inicia sesión';
+  $('#cl-namef').hidden = m !== 'up'; $('#cl-go').textContent = m === 'up' ? 'Crear cuenta' : 'Entrar';
+  $('#cl-toggle').textContent = m === 'up' ? 'Ya tengo cuenta' : 'Crear cuenta'; $('#cl-pass').autocomplete = m === 'up' ? 'new-password' : 'current-password';
+}
+async function startCloud() {
+  showCloudLogin('Conectando con el servidor…', true);
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=20'); Cloud.init(CFG.firebase); }
+  catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
+  Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
+}
+$('#cl-toggle').onclick = () => setClMode(clMode === 'up' ? 'in' : 'up');
+$('#cl-go').onclick = async () => {
+  const email = $('#cl-email').value.trim(), pass = $('#cl-pass').value, name = $('#cl-name').value.trim();
+  if (!email || !pass) { $('#cl-msg').textContent = 'Escribe tu correo y tu contraseña.'; return; }
+  if (clMode === 'up' && !name) { $('#cl-msg').textContent = 'Escribe tu nombre.'; return; }
+  $('#cl-msg').textContent = clMode === 'up' ? 'Creando tu cuenta…' : 'Entrando…';
+  try { if (clMode === 'up') { pendingName = name; await Cloud.signUp(email, pass, name); } else await Cloud.signIn(email, pass); }
+  catch (e) { $('#cl-msg').textContent = Cloud.msg(e); }
+};
+$('#cl-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#cl-go').click(); });
+// el dueño debe verificar su correo (enlace que envía el servidor) antes de quedar como administrador
+function showVerify(u) {
+  showCloudLogin('Te enviamos un correo a ' + u.email + ' para verificarlo. Ábrelo, toca el enlace y vuelve aquí. Así se confirma que eres el dueño.', true);
+  $('#cl-verify').hidden = false; $('#cl-title').textContent = 'Verifica tu correo';
+}
+$('#cl-verified').onclick = async () => { const u = await Cloud.reloadUser(); if (u && u.verified) { $('#cl-verify').hidden = true; cloudUser = u; cloudEnter(u); } else $('#cl-msg').textContent = 'Todavía no aparece verificado. Revisa también la carpeta de spam.'; };
+$('#cl-resend').onclick = async () => { try { await Cloud.resendVerification(); $('#cl-msg').textContent = 'Correo reenviado a ' + cloudUser.email + '.'; } catch (e) { $('#cl-msg').textContent = Cloud.msg(e); } };
+$('#cl-out').onclick = () => { $('#cl-verify').hidden = true; cloudSignOut(); };
+$('#cl-forgot').onclick = async () => {
+  const email = $('#cl-email').value.trim(); if (!email) { $('#cl-msg').textContent = 'Escribe tu correo y vuelve a tocar "Olvidé mi contraseña".'; return; }
+  try { await Cloud.reset(email); $('#cl-msg').textContent = 'Te enviamos un correo para cambiar la contraseña.'; } catch (e) { $('#cl-msg').textContent = Cloud.msg(e); }
+};
+async function cloudEnter(u) {
+  showCloudLogin('Entrando…', true);
+  const isOwner = u.email === String(CFG.ownerEmail || '').toLowerCase();
+  let doc = null, offline = false;
+  if (isOwner && !u.verified) { showVerify(u); return; }
+  try { doc = await Cloud.getUser(u.uid); } catch (e) { offline = true; }
+  let lu = U.list.find((x) => x.cloudUid === u.uid);
+  if (!doc && !offline) {
+    const data = { name: pendingName || u.name || u.email.split('@')[0], email: u.email, role: isOwner ? 'admin' : 'user', active: true, createdAt: Date.now(), lastSeen: Date.now() };
+    try { doc = await Cloud.createUser(u.uid, data); if (!isOwner) cloudNew = true; }
+    catch (e) {
+      await Cloud.signOut();
+      showCloudLogin('El registro está cerrado. Pide a ' + (CFG.ownerName || 'el administrador') + ' que invite tu correo ' + u.email + '.');
+      return;
+    }
+  }
+  if (!doc && !lu) { await Cloud.signOut(); showCloudLogin('Sin conexión con el servidor. Para entrar por primera vez necesitas internet.'); return; }
+  if (doc && doc.active === false) { await Cloud.signOut(); showCloudLogin('Tu cuenta fue desactivada por el administrador.'); return; }
+  if (!lu && isOwner) lu = U.list.find((x) => x.id === 'u1' && !x.cloudUid);   // el dueño conserva sus datos locales de siempre
+  if (!lu) { lu = { id: 'u' + Date.now().toString(36), lock: 'none', active: true, created: todayYmdSafe() }; U.list.push(lu); }
+  Object.assign(lu, { cloudUid: u.uid, email: u.email, name: (doc && doc.name) || lu.name || u.email, role: (doc && doc.role) || lu.role || 'user', active: true });
+  saveUsers(); cloudDoc = doc; pendingName = '';
+  $('#cloudlogin').hidden = true;
+  let un = null; try { un = sessionStorage.getItem('repcam.unlocked'); } catch (e) {}
+  if (lu.lock !== 'none' && un !== lu.id) showLogin(false, lu.id); else enterUser(lu.id);
+  if (cloudNew) {   // cuenta nueva: marcar equipo y elegir plan
+    cloudNew = false; document.querySelector('.tab[data-view="plan"]').click(); openEquip(true);
+    toast('Hola ' + curUser().name.split(' ')[0] + ': marca tu equipo y elige tu plan');
+  }
+}
+// lo del servidor gana si es más nuevo (p. ej., el administrador te asignó un plan)
+function mergeCloud() {
+  if (!cloudDoc) return false; let ch = false;
+  if (cloudDoc.plan && (cloudDoc.planAt || 0) > (S.planAt || 0)) { S.plan = cloudDoc.plan; S.planAt = cloudDoc.planAt; S.order = {}; S.overrides = {}; ch = true; }
+  if (cloudDoc.profile && (cloudDoc.profileAt || 0) > (S.profileAt || 0)) { Object.assign(S.profile, cloudDoc.profile); S.profileAt = cloudDoc.profileAt; ch = true; }
+  if (ch) { try { localStorage.setItem(dataKey(U.cur), JSON.stringify(S)); } catch (e) {} }
+  return ch;
+}
+// sube tu perfil, tu plan y un resumen de uso (no las series)
+function cloudPush() {
+  if (!CLOUD_ON || !cloudUser || !window.Cloud || curUser().cloudUid !== cloudUser.uid) return;
+  clearTimeout(cloudT);
+  cloudT = setTimeout(async () => {
+    const L = S.logs || [], dates = [...new Set(L.map((l) => l.date))].sort(), since = C.ymd(new Date(Date.now() - 28 * 864e5));
+    const P = S.profile;
+    const data = clean({ name: curUser().name, plan: S.plan, planName: S.plan.name, planTemplate: S.plan.template || null, planAt: S.planAt || 0,
+      profile: { bw: P.bw, height: P.height, age: P.age, level: P.level, equip: P.equip }, profileAt: S.profileAt || 0,
+      usage: { series: L.length, sessions: dates.length, lastTraining: dates[dates.length - 1] || null, days28: dates.filter((x) => x >= since).length, mode: S.settings.mode, lock: curUser().lock, appVer: APP_VER },
+      lastSeen: Date.now() });
+    try { await Cloud.updateMe(cloudUser.uid, data); } catch (e) {}
+  }, 1500);
+}
+async function cloudRefresh() {
+  if (!CLOUD_ON || !cloudUser || !window.Cloud) return;
+  try {
+    const d = await Cloud.getUser(cloudUser.uid); if (!d) return; cloudDoc = d;
+    if (d.active === false) { toast('Tu cuenta fue desactivada'); cloudSignOut(); return; }
+    const cu = curUser(); if (cu.role !== d.role) { cu.role = d.role; saveUsers(); $('#admincard').hidden = !isAdmin(cu); }
+    if (mergeCloud()) { applyPlan(); refreshAll(); if (!$('#view-plan').hidden) renderPlan(); toast('Tu plan se actualizó desde el servidor'); }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) cloudRefresh(); });
+async function cloudSignOut() {
+  try { sessionStorage.removeItem('repcam.unlocked'); sessionStorage.removeItem('repcam.adminAuth'); } catch (e) {}
+  cloudDoc = null; if (window.Cloud) await Cloud.signOut();
+}
 
 // ---------- administración de usuarios ----------
 let adSel = null;
@@ -1831,6 +1970,7 @@ $('#ad-close').onclick = () => { $('#admin').hidden = true; };
 $('#ad-signup').onchange = (e) => { U.allowSignup = e.target.checked; saveUsers(); toast(U.allowSignup ? 'Cualquiera puede crear su cuenta' : 'Solo el administrador crea cuentas'); };
 $('#ad-add').onclick = () => { $('#admin').hidden = true; showLogin(true); $('#btn-adduser').hidden = false; $('#btn-adduser').click(); };
 $('#ad-list').addEventListener('click', (ev) => {
+  if (CLOUD_ON) return;
   const b = ev.target.closest('[data-ad]'); if (!b) return;
   adSel = U.list.find((u) => u.id === b.dataset.ad); const st = userStats(adSel);
   $('#au-title').textContent = adSel.name; $('#au-name').value = adSel.name; $('#au-role').value = adSel.role; $('#au-active').value = adSel.active === false ? '0' : '1';
@@ -1860,13 +2000,89 @@ $('#au-del').onclick = () => {
   $('#aduser').hidden = true; renderAdmin(); $('#admincount').textContent = U.list.length; toast('Usuario eliminado');
 };
 $('#adminbar-back').onclick = () => { const a = adminAuth(); if (a) enterUser(a.id); };
+// --- administración con servidor: todas las cuentas, sus planes y su uso (sin sus series)
+let cloudList = [], cAd = null;
+const fmtTs = (ms) => ms ? new Date(ms).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
+async function openCloudAdmin() {
+  if (!isAdmin(curUser())) { toast('Solo un administrador puede abrir esto'); return; }
+  $('#admin').hidden = false; $('#ad-list').innerHTML = '<p class="note">Cargando usuarios…</p>';
+  try {
+    const [list, cfg] = await Promise.all([Cloud.listUsers(), Cloud.getConfig()]);
+    cloudList = list.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+    $('#ad-signup').checked = cfg.allowSignup !== false; $('#ad-invited').value = (cfg.invited || []).join('\n');
+    renderCloudAdmin();
+  } catch (e) { $('#ad-list').innerHTML = '<p class="note">No se pudo leer el servidor: ' + esc(Cloud.msg(e)) + '</p>'; }
+}
+function renderCloudAdmin() {
+  const n = cloudList.length, act7 = cloudList.filter((u) => (u.lastSeen || 0) > Date.now() - 7 * 864e5).length;
+  const byPlan = {}; cloudList.forEach((u) => { const k = u.planName || 'Sin plan'; byPlan[k] = (byPlan[k] || 0) + 1; });
+  $('#ad-sum').textContent = n + ' cuentas · ' + act7 + ' activas esta semana · planes: ' + Object.keys(byPlan).map((k) => k + ' (' + byPlan[k] + ')').join(', ');
+  $('#ad-list').innerHTML = cloudList.map((u) => {
+    const us = u.usage || {};
+    return '<button class="librow' + (u.active === false ? ' off' : '') + '" data-cad="' + u.uid + '">' + esc(u.name || u.email) + (u.role === 'admin' ? ' · administrador' : '') + (cloudUser && u.uid === cloudUser.uid ? ' · (tú)' : '') +
+      '<small>' + esc(u.email || '') + (u.active === false ? ' · desactivada' : '') + '<br>Plan: ' + esc(u.planName || 'sin plan') + ' · ' + (us.sessions || 0) + ' entrenamientos · último ' + fmtDate(us.lastTraining) + ' · ' + (us.days28 || 0) + ' días en 4 semanas · visto ' + fmtTs(u.lastSeen) + '</small></button>';
+  }).join('') || '<p class="note">Aún no hay cuentas.</p>';
+}
+$('#ad-list').addEventListener('click', (ev) => {
+  if (!CLOUD_ON) return;
+  const b = ev.target.closest('[data-cad]'); if (!b) return;
+  cAd = cloudList.find((u) => u.uid === b.dataset.cad); const us = cAd.usage || {}, P = cAd.profile || {};
+  $('#au-title').textContent = cAd.name || cAd.email; $('#au-name').value = cAd.name || ''; $('#au-role').value = cAd.role || 'user'; $('#au-active').value = cAd.active === false ? '0' : '1';
+  $('#au-info').innerHTML = esc(cAd.email || '') + '<br>Cuenta creada ' + fmtTs(cAd.createdAt) + ' · visto ' + fmtTs(cAd.lastSeen) + ' · versión ' + (us.appVer || '—') +
+    '<br>Plan: <b>' + esc(cAd.planName || 'sin plan') + '</b>' + (cAd.planBy ? ' (asignado por ' + esc(cAd.planBy) + ')' : '') +
+    '<br>Uso: ' + (us.sessions || 0) + ' entrenamientos, ' + (us.series || 0) + ' series · último ' + fmtDate(us.lastTraining) + ' · modo ' + (us.mode === 'sensor' ? 'teléfono en el cuerpo' : 'cámara') + ' · acceso ' + (us.lock === 'bio' ? 'huella' : us.lock === 'pin' ? 'PIN' : 'libre') +
+    '<br>Perfil: ' + [P.bw ? P.bw + ' kg' : '', P.height ? P.height + ' cm' : '', P.age ? P.age + ' años' : '', P.level || ''].filter(Boolean).join(' · ') + (P.equip ? '<br>Equipo: ' + esc(P.equip.map((k) => RepLib.EQUIP[k]).filter(Boolean).join(', ')) : '');
+  const opts = [{ id: 'sebastian', name: C.DEFAULT_PLAN.name }].concat(RepLib.TEMPLATES);
+  $('#au-tpl').innerHTML = opts.map((t) => '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
+  $('#au-plan').hidden = true; $('#aduser').hidden = false;
+});
+function planHtml(plan) {
+  if (!plan || !plan.days) return '<p class="note">Sin plan.</p>';
+  return plan.days.map((d) => '<p style="margin:6px 0 2px"><b>' + esc(d.name || RepLib.DAY_NAMES[d.key]) + (d.session ? ' · ' + esc(d.session) : '') + '</b></p>' +
+    d.items.map((it) => { const e = RepLib.resolve(it, d.key); return '<div class="note">' + esc(e.name) + ' — ' + e.sets + ' × ' + e.repsText + '</div>'; }).join('')).join('');
+}
+if (CLOUD_ON) {
+  $('#btn-admin').onclick = openCloudAdmin;
+  $('#ad-add').hidden = true; $('#au-reset').hidden = true; $('#ad-cloud').hidden = false;
+  $('#au-enter').textContent = 'Ver su plan'; $('#au-export').textContent = 'Descargar su perfil'; $('#au-del').textContent = 'Eliminar perfil';
+  $('#ad-signup').onchange = async (e) => { try { await Cloud.setConfig({ allowSignup: e.target.checked }); toast(e.target.checked ? 'Cualquiera puede crear su cuenta' : 'Solo personas invitadas'); } catch (er) { toast(Cloud.msg(er)); } };
+  $('#ad-saveinv').onclick = async () => {
+    const inv = $('#ad-invited').value.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter((x) => /@/.test(x));
+    try { await Cloud.setConfig({ invited: [...new Set(inv)] }); toast(inv.length + ' correo' + (inv.length === 1 ? '' : 's') + ' invitado' + (inv.length === 1 ? '' : 's')); } catch (er) { toast(Cloud.msg(er)); }
+  };
+  $('#au-enter').onclick = () => { $('#au-plan').innerHTML = planHtml(cAd.plan); $('#au-plan').hidden = !$('#au-plan').hidden; };
+  $('#au-assign').onclick = async () => {
+    const tid = $('#au-tpl').value, eq = (cAd.profile && cAd.profile.equip) || Object.keys(RepLib.EQUIP);
+    const np = tid === 'sebastian' ? JSON.parse(JSON.stringify(C.DEFAULT_PLAN)) : RepLib.fromTemplate(tid, eq);
+    if (!confirm('¿Asignar "' + np.name + '" a ' + (cAd.name || cAd.email) + '? Lo verá la próxima vez que abra la app.')) return;
+    const data = clean({ plan: np, planName: np.name, planTemplate: tid, planAt: Date.now(), planBy: curUser().name });
+    try { await Cloud.adminUpdate(cAd.uid, data); Object.assign(cAd, data); toast('Plan asignado'); renderCloudAdmin(); $('#au-plan').innerHTML = planHtml(np); $('#au-plan').hidden = false; }
+    catch (e) { toast(Cloud.msg(e)); }
+    if (cloudUser && cAd.uid === cloudUser.uid) cloudRefresh();
+  };
+  $('#au-save').onclick = async () => {
+    const n = $('#au-name').value.trim(), role = $('#au-role').value, active = $('#au-active').value === '1';
+    const admins = cloudList.filter((x) => x.role === 'admin' && x.active !== false);
+    if (cAd.role === 'admin' && (role !== 'admin' || !active) && admins.length < 2) { toast('Debe quedar al menos un administrador activo'); return; }
+    if (cloudUser && cAd.uid === cloudUser.uid && !active) { toast('No puedes desactivar tu propia cuenta'); return; }
+    try { await Cloud.adminUpdate(cAd.uid, { name: n || cAd.name, role, active }); Object.assign(cAd, { name: n || cAd.name, role, active }); $('#aduser').hidden = true; renderCloudAdmin(); toast('Cuenta actualizada'); }
+    catch (e) { toast(Cloud.msg(e)); }
+  };
+  $('#au-export').onclick = () => downloadBlob(new Blob([JSON.stringify(cAd, null, 1)], { type: 'application/json' }), 'RepCam_perfil_' + String(cAd.name || cAd.uid).replace(/\s+/g, '_') + '.json');
+  $('#au-del').onclick = async () => {
+    if (cloudUser && cAd.uid === cloudUser.uid) { toast('No puedes eliminar tu propia cuenta'); return; }
+    if (!confirm('¿Eliminar el perfil de ' + (cAd.name || cAd.email) + ' del servidor? Si vuelve a entrar y el registro está abierto, se creará uno nuevo. Para impedirlo, mejor desactívalo.')) return;
+    try { await Cloud.adminDelete(cAd.uid); cloudList = cloudList.filter((x) => x !== cAd); $('#aduser').hidden = true; renderCloudAdmin(); toast('Perfil eliminado'); } catch (e) { toast(Cloud.msg(e)); }
+  };
+}
+
 
 // ---------- plan: armar y editar tu entrenamiento ----------
 const REPS_OPTS = ['3–5', '4–6', '5–8', '6–10', '8–10', '8–12', '10–12', '10–15', '12–15', '12–20', '15–20', '15–25', '20–30'];
 const REST_OPTS = [45, 60, 75, 90, 120, 150, 180, 240];
 const DAY_ORDER = 'LMXJVSD';
 let editRef = null, libTarget = null, libMus = null;
-function planChanged() { applyPlan(); save(); renderPlan(); renderToday(); }
+function planChanged() { S.planAt = Date.now(); applyPlan(); save(); renderPlan(); renderToday(); }
 function planDay(k) { return S.plan.days.find((d) => d.key === k); }
 function weeklyMuscles() { const o = {}; C.PLAN.forEach((e) => { const n = C.plannedSets(e, S.overrides, weekNow()); o[e.muscle] = (o[e.muscle] || 0) + n; if (e.muscle2) o[e.muscle2] = (o[e.muscle2] || 0) + n / 2; }); return o; }
 function renderPlan() {
@@ -1899,7 +2115,7 @@ $('#plan').addEventListener('click', (ev) => {
   if (t.dataset.delday) { const d = planDay(t.dataset.delday); if (d.items.length && !confirm('¿Quitar el ' + (d.name || '').toLowerCase() + ' del plan?')) return; S.plan.days = S.plan.days.filter((x) => x !== d); return planChanged(); }
 });
 $('#plan').addEventListener('change', (ev) => {
-  if (ev.target.dataset.sess) { planDay(ev.target.dataset.sess).session = ev.target.value.trim(); applyPlan(); save(); renderToday(); }
+  if (ev.target.dataset.sess) { planDay(ev.target.dataset.sess).session = ev.target.value.trim(); S.planAt = Date.now(); applyPlan(); save(); renderToday(); }
   if (ev.target.id === 'pl-addday' && ev.target.value) { const k = ev.target.value; S.plan.days.push({ key: k, name: RepLib.DAY_NAMES[k], session: '', items: [] }); planChanged(); }
 });
 function fillSelect(sel, opts, val, fmt) { sel.innerHTML = opts.map((o) => '<option value="' + o + '"' + (String(o) === String(val) ? ' selected' : '') + '>' + (fmt ? fmt(o) : o) + '</option>').join(''); }
@@ -1971,7 +2187,7 @@ function openEquip(first) {
   $('#equippick').dataset.first = first ? '1' : ''; $('#equippick').hidden = false;
 }
 $('#eq-ok').onclick = () => {
-  S.profile.equip = [...document.querySelectorAll('#eq-list input:checked')].map((x) => x.value); save(); $('#equippick').hidden = true; renderPlan();
+  S.profile.equip = [...document.querySelectorAll('#eq-list input:checked')].map((x) => x.value); S.profileAt = Date.now(); save(); $('#equippick').hidden = true; renderPlan();
   if ($('#equippick').dataset.first) openTemplates();
 };
 
@@ -2236,7 +2452,7 @@ const pfNum = (id) => { const v = $(id).value; return v === '' ? null : +v; };
 ['#pf-bw', '#pf-h', '#pf-age', '#pf-level'].forEach((id) => $(id).addEventListener('change', () => {
   const P = S.profile, bw = pfNum('#pf-bw');
   if (bw && bw !== P.bw) { const d = todayYmd(); S.bwLog = S.bwLog.filter((x) => x.date !== d); S.bwLog.push({ date: d, kg: bw }); }
-  P.bw = bw; P.height = pfNum('#pf-h'); P.age = pfNum('#pf-age'); P.level = $('#pf-level').value; save(); renderProfileNote();
+  P.bw = bw; P.height = pfNum('#pf-h'); P.age = pfNum('#pf-age'); P.level = $('#pf-level').value; S.profileAt = Date.now(); save(); renderProfileNote();
 }));
 $('#set-record').onchange = (e) => { S.settings.record = e.target.value === '1'; save(); };
 $('#set-countmode').onchange = (e) => { S.settings.countMode = e.target.value; save(); };
@@ -2353,7 +2569,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 18;
+const APP_VER = 20;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
@@ -2364,7 +2580,7 @@ $('#btn-update').onclick = async () => {
 };
 // inicio: entra directo si hay una sola persona sin bloqueo (o ya desbloqueó en esta sesión); si no, pregunta quién entrena
 loadUsers();
-(() => {
+if (CLOUD_ON) startCloud(); else (() => {
   let un = null; try { un = sessionStorage.getItem('repcam.unlocked'); } catch (e) {}
   const cu = curUser();
   if (un && U.list.some((u) => u.id === un && (u.active !== false || adminAuth()))) enterUser(un);

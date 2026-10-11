@@ -1,0 +1,36 @@
+rules_version = '2';
+// Reglas del servidor de RepCam. Pégalas en Firebase → Firestore Database → Reglas → Publicar.
+// Cambia el correo del dueño si usas otro (debe coincidir con ownerEmail en config.js).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function myEmail() { return request.auth.token.email.lower(); }
+    // dueño: su correo, verificado con el enlace que envía el servidor al crear la cuenta
+    function isOwner() { return signedIn() && myEmail() == 'sssamhan@gmail.com' && request.auth.token.email_verified == true; }
+    function myDoc() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function isAdmin() { return isOwner() || (signedIn() && exists(myDoc()) && get(myDoc()).data.role == 'admin' && get(myDoc()).data.active == true); }
+    function cfgPath() { return /databases/$(database)/documents/config/app; }
+    // registro abierto, o el correo fue invitado por el administrador
+    function signupOpen() {
+      return !exists(cfgPath()) || get(cfgPath()).data.get('allowSignup', true) == true || myEmail() in get(cfgPath()).data.get('invited', []);
+    }
+
+    match /config/app {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /users/{uid} {
+      // cada persona ve su propio perfil; el administrador ve a todos
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      // crear perfil: solo el propio, como usuario normal y activo (el dueño entra como administrador)
+      allow create: if signedIn() && request.auth.uid == uid
+        && (isOwner() || (signupOpen() && request.resource.data.role == 'user' && request.resource.data.active == true));
+      // actualizar: el administrador todo; la persona su perfil y plan, sin tocar rol, estado ni correo
+      allow update: if isAdmin()
+        || (signedIn() && request.auth.uid == uid && resource.data.active == true
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'active', 'email', 'createdAt']));
+      allow delete: if isAdmin();
+    }
+  }
+}

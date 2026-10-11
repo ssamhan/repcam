@@ -4,7 +4,7 @@ La cámara del navegador solo funciona en páginas https, así que la app debe a
 
 Opción recomendada: GitHub Pages (gratis)
 1. Crea un repositorio público en github.com, por ejemplo "repcam".
-2. Sube todos los archivos de esta carpeta (index.html, core.js, library.js, sw.js, manifest.webmanifest y los íconos).
+2. Sube todos los archivos de esta carpeta (index.html, config.js, core.js, library.js, cloud.js, sw.js, manifest.webmanifest y los íconos).
 3. En el repositorio: Settings → Pages → Branch: main → / (root) → Save.
 4. A los 1–2 minutos queda en https://TU-USUARIO.github.io/repcam/
 
@@ -39,6 +39,12 @@ Verte en grande (recomendado)
 Discos
 - Ajustes → Mis discos y barras: registra tus discos (con foto si quieres) y tus barras.
 - En cada serie toca "Discos", marca los de un lado y la app calcula el total. También te dice qué poner para el peso sugerido.
+
+Novedades v20 · Servidor central
+- Con el servidor activado (docs/FIREBASE.md), cada persona crea su cuenta con correo y contraseña en el servidor de RepCam y entra desde su propio teléfono (sin Google). Su perfil y su plan quedan en el servidor; sus series, pesos, descansos y grabaciones quedan solo en su teléfono.
+- Tú (sssamhan@gmail.com) eres el dueño y administrador: al crear tu cuenta verificas tu correo con el enlace que te llega. En Ajustes → Administración ves todas las cuentas: correo, plan, perfil, equipo, cuántos entrenamientos, último entrenamiento y última vez que abrió la app.
+- Puedes asignarle un plan a cualquiera (lo recibe al abrir la app), darle rol de administrador, desactivarla, cerrar el registro e invitar correos específicos.
+- Mientras config.js no tenga los datos de Firebase, la app funciona como antes (cuentas solo en este teléfono).
 
 Novedades v18 · Administrador
 - Sebastián Samhan es el administrador. Cada persona puede crear su cuenta en la pantalla "¿Quién entrena?" (+ Crear mi cuenta), marcar su equipo, elegir y editar su plan, y protegerla con huella o PIN. Al crearla se le avisa que el administrador puede verla.
