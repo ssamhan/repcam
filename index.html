@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RepCam</title>
+<meta name="theme-color" content="#16191d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: una columna tipo app, barra inferior fija; la cámara ocupa la pantalla completa.
+   Paleta: grafito con el naranja de seguridad de las placas del rack. */
+:root {
+  --bg: #16191d; --surface: #1f2328; --surface-2: #2a2f36; --line: #363c45;
+  --fg: #eef1f4; --muted: #9aa3ad; --accent: #ff8a1f; --accent-ink: #1a0f04;
+  --good: #3ecf8e; --warn: #f5b942; --bad: #ff6b6b; --info: #6ab0ff;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 14px;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef1f4; --surface: #ffffff; --surface-2: #e3e8ee; --line: #cfd6de;
+    --fg: #14181d; --muted: #5b6672; --accent: #e06e00; --accent-ink: #ffffff;
+    --good: #12895a; --warn: #a86b00; --bad: #c93636; --info: #1f6fd1; color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #eef1f4; --surface: #ffffff; --surface-2: #e3e8ee; --line: #cfd6de;
+  --fg: #14181d; --muted: #5b6672; --accent: #e06e00; --accent-ink: #ffffff;
+  --good: #12895a; --warn: #a86b00; --bad: #c93636; --info: #1f6fd1; color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 var(--body); -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* app shell */
+.app { max-width: 560px; margin: 0 auto; min-height: 100%; padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px calc(env(safe-area-inset-bottom, 0px) + 88px); display: flex; flex-direction: column; gap: 16px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { font-family: var(--display); font-size: 26px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.brand i { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); display: inline-block; position: relative; }
+.brand i::after { content: ""; position: absolute; inset: 9px 3px; background: var(--accent-ink); border-radius: 2px; }
+.weekchip { font-size: 13px; color: var(--muted); text-align: right; line-height: 1.25; }
+.weekchip b { color: var(--fg); font-weight: 600; }
+.weekchip .dl { color: var(--warn); font-weight: 600; }
+
+.days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.day { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 0; text-align: center; cursor: pointer; }
+.day b { display: block; font-family: var(--display); font-size: 20px; }
+.day span { font-size: 11px; color: var(--muted); }
+.day[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.day[aria-pressed="true"] span { color: inherit; opacity: .8; }
+.day.today:not([aria-pressed="true"]) { border-color: var(--accent); }
+
+.session h2 { font-size: 30px; line-height: 1.05; }
+.session p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.restday { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); padding: 14px 16px; color: var(--muted); font-size: 15px; }
+
+.list { display: flex; flex-direction: column; gap: 8px; }
+.ex { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; text-align: left; cursor: pointer; width: 100%; }
+.ex .name { font-weight: 600; font-size: 16px; min-width: 0; }
+.ex .meta { font-size: 13px; color: var(--muted); grid-column: 1; }
+.ex .dots { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 4px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.dot.on { background: var(--accent); border-color: var(--accent); }
+.ex.done { opacity: .62; }
+
+.pill { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.up { color: var(--good); } .pill.down { color: var(--bad); } .pill.addset { color: var(--info); }
+.pill.keep, .pill.start { color: var(--muted); } .pill.deload { color: var(--warn); }
+
+/* barra inferior */
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px); z-index: 5; }
+.tabs .in { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; max-width: 560px; }
+.tab { background: none; border: 0; padding: 10px 0 12px; font-size: 13px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; }
+.tab svg { width: 22px; height: 22px; }
+.tab[aria-selected="true"] { color: var(--accent); }
+
+/* botones */
+.btn { border: 0; border-radius: 12px; padding: 14px 16px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: var(--surface-2); }
+.btn.small { padding: 8px 12px; font-size: 14px; border-radius: 10px; }
+.btn.danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > .btn { flex: 1 1 140px; }
+
+/* vista ejercicio */
+.sheet { position: fixed; inset: 0; background: var(--bg); z-index: 10; overflow-y: auto; }
+.sheet .in { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px); display: flex; flex-direction: column; gap: 16px; }
+.back { background: none; border: 0; padding: 6px 0; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-size: 15px; align-self: flex-start; }
+.exhead h2 { font-size: 30px; line-height: 1.05; }
+.exhead p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.specs div { background: var(--surface); padding: 8px 10px; }
+.specs small { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.specs b { font-family: var(--display); font-size: 22px; font-weight: 600; }
+.demo { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; grid-template-columns: 140px 1fr; gap: 12px; align-items: center; }
+.demo canvas { width: 140px; height: 140px; }
+.demo p { margin: 0 0 8px; font-size: 14px; }
+.demo a { color: var(--accent); font-weight: 600; font-size: 14px; }
+.rec { border-radius: var(--r); padding: 12px 14px; border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; gap: 6px; }
+.rec b { font-family: var(--display); font-size: 22px; }
+.rec p { margin: 0; color: var(--muted); font-size: 14px; }
+.rec.up { border-color: var(--good); } .rec.up b { color: var(--good); }
+.rec.down { border-color: var(--bad); } .rec.down b { color: var(--bad); }
+.rec.addset { border-color: var(--info); } .rec.addset b { color: var(--info); }
+.rec.deload { border-color: var(--warn); } .rec.deload b { color: var(--warn); }
+.stepper { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.stepper button { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); cursor: pointer; font-size: 18px; }
+.stepper b { color: var(--fg); font-family: var(--display); font-size: 22px; min-width: 1.5ch; text-align: center; }
+
+.sets { display: flex; flex-direction: column; gap: 6px; }
+.set { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; text-align: left; width: 100%; }
+.set .n { font-family: var(--display); font-size: 20px; color: var(--muted); }
+.set .v { font-weight: 600; }
+.set .v small { color: var(--muted); font-weight: 400; margin-left: 6px; }
+.set .tag { font-size: 11px; color: var(--muted); }
+.empty { color: var(--muted); font-size: 14px; padding: 4px 2px; }
+
+/* diálogo */
+.modal { position: fixed; inset: 0; background: rgb(0 0 0 / .55); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
+.modal .box { background: var(--surface); width: 100%; max-width: 560px; border-radius: 18px 18px 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); display: flex; flex-direction: column; gap: 14px; }
+.modal h3 { font-size: 22px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+input, select { font: 600 20px var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; min-width: 0; }
+input[type="date"] { font-size: 16px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* historial y ajustes */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.card h3 { font-size: 20px; }
+.hday h3 { font-size: 18px; display: flex; justify-content: space-between; gap: 8px; }
+.hday h3 small { font-family: var(--body); font-weight: 500; font-size: 13px; color: var(--muted); }
+.hex { font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.hex b { font-weight: 600; }
+.hsets { display: flex; flex-wrap: wrap; gap: 4px; }
+.hset { background: var(--surface-2); border: 0; border-radius: 8px; padding: 3px 8px; font-size: 13px; cursor: pointer; }
+.setting { display: grid; grid-template-columns: 1fr 140px; gap: 12px; align-items: center; }
+.setting span { font-size: 15px; }
+.setting small { display: block; color: var(--muted); font-size: 13px; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+
+/* cámara */
+.cam { position: fixed; inset: 0; background: #000; z-index: 20; display: flex; flex-direction: column; color: #fff; }
+.cam .stage { position: relative; flex: 1; overflow: hidden; }
+.cam video, .cam canvas.ov { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cam.mirror video, .cam.mirror canvas.ov { transform: scaleX(-1); }
+.hud-top { position: absolute; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px 24px; background: linear-gradient(rgb(0 0 0 / .7), transparent); display: flex; align-items: flex-start; gap: 10px; }
+.hud-top .t { flex: 1; min-width: 0; }
+.hud-top .t b { font-family: var(--display); font-size: 22px; display: block; line-height: 1.05; }
+.hud-top .t span { font-size: 13px; opacity: .8; }
+.iconbtn { width: 42px; height: 42px; border-radius: 12px; border: 0; background: rgb(255 255 255 / .16); color: #fff; display: grid; place-items: center; cursor: pointer; flex: none; }
+.iconbtn svg { width: 22px; height: 22px; }
+.counter { position: absolute; left: 14px; bottom: 14px; display: flex; align-items: flex-end; gap: 14px; text-shadow: 0 2px 12px rgb(0 0 0 / .6); }
+.counter .reps { font-family: var(--display); font-size: 108px; line-height: .85; font-weight: 700; }
+.counter .lbl { font-size: 13px; opacity: .85; padding-bottom: 8px; }
+.counter .lbl b { display: block; font-family: var(--display); font-size: 26px; }
+.rom { position: absolute; right: 14px; bottom: 18px; width: 12px; height: 38%; border-radius: 6px; background: rgb(255 255 255 / .2); overflow: hidden; }
+.rom i { position: absolute; left: 0; right: 0; bottom: 0; background: #ff8a1f; border-radius: 6px; transition: height .08s linear; }
+.status { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); background: rgb(0 0 0 / .62); padding: 10px 14px; border-radius: 12px; font-size: 15px; text-align: center; max-width: 86%; }
+.rest { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / .55); }
+.rest .ring { position: relative; width: 220px; height: 220px; display: grid; place-items: center; text-align: center; }
+.rest svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.rest .time { font-family: var(--display); font-size: 64px; font-weight: 700; line-height: 1; }
+.rest .sub { font-size: 14px; opacity: .85; }
+.rest.over .time { color: #ff8a1f; }
+.cam .controls { background: #0d0f12; padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 12px); display: flex; flex-direction: column; gap: 10px; }
+.lastset { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.lastset .chips { grid-column: 1 / -1; align-items: center; }
+.lastset .chips::before { content: "RIR"; font-size: 12px; letter-spacing: .06em; color: #aab3bd; margin-right: 4px; }
+.lastset label.f { color: #aab3bd; }
+.lastset input { background: #1b1f24; color: #fff; border-color: #333a43; font-size: 18px; padding: 8px 10px; }
+.cam .chips .chip { background: #1b1f24; border-color: #333a43; color: #fff; padding: 6px 12px; }
+.cam .chips .chip[aria-pressed="true"] { background: #ff8a1f; color: #1a0f04; border-color: #ff8a1f; }
+.cam .btn.ghost { background: #2a2f36; color: #fff; }
+.cam .btn.primary { background: #ff8a1f; color: #1a0f04; }
+.ctlrow { display: grid; grid-template-columns: 64px 64px 1fr; gap: 8px; }
+.ctlrow .btn { padding: 14px 0; font-size: 20px; }
+.ctlrow .btn.primary { font-size: 16px; }
+.cam-open .toast { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 70px); }
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 60; max-width: 90%; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .rom i { transition: none; } }
+@media (max-width: 380px) { .demo { grid-template-columns: 1fr; justify-items: center; } .specs b { font-size: 19px; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand"><i></i>RepCam</div>
+    <div class="weekchip" id="weekchip"></div>
+  </header>
+
+  <section id="view-today">
+    <div class="days" id="days" role="group" aria-label="Día de entrenamiento"></div>
+    <div style="height:16px"></div>
+    <div class="session" id="session"></div>
+    <div style="height:12px"></div>
+    <div id="restnote"></div>
+    <div class="list" id="exlist"></div>
+  </section>
+
+  <section id="view-history" hidden>
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn primary" id="btn-xlsx">Exportar Excel</button>
+      <button class="btn ghost" id="btn-backup">Copia de seguridad</button>
+    </div>
+    <div class="list" id="history"></div>
+  </section>
+
+  <section id="view-settings" hidden>
+    <div class="list">
+      <div class="card">
+        <h3>Ciclo de entrenamiento</h3>
+        <div class="setting"><span>Inicio del ciclo<small>Lunes de la semana 1. La semana 8 es de descarga.</small></span><input type="date" id="set-start"></div>
+      </div>
+      <div class="card">
+        <h3>Detección con cámara</h3>
+        <div class="setting"><span>Cerrar serie tras<small>Segundos sin repeticiones</small></span><select id="set-autoend"><option>5</option><option>8</option><option>10</option><option>15</option><option>20</option></select></div>
+        <div class="setting"><span>Mínimo de reps<small>Movimientos sueltos con menos reps no se guardan solos</small></span><select id="set-minreps"><option>1</option><option>2</option><option>3</option></select></div>
+        <div class="setting"><span>Cámara<small>La trasera ve más campo y detecta mejor</small></span><select id="set-facing"><option value="environment">Trasera</option><option value="user">Frontal</option></select></div>
+        <div class="setting"><span>Aviso de descanso<small>Pitido y vibración al terminar</small></span><select id="set-sound"><option value="1">Activado</option><option value="0">Desactivado</option></select></div>
+      </div>
+      <div class="card">
+        <h3>Datos</h3>
+        <p class="note">Todo se guarda solo en este teléfono. Haz una copia de seguridad de vez en cuando.</p>
+        <div class="row">
+          <button class="btn ghost small" id="btn-restore">Restaurar copia</button>
+          <button class="btn ghost small" id="btn-resetplan">Volver a las series originales</button>
+        </div>
+        <input type="file" id="file-restore" accept="application/json,.json" hidden>
+      </div>
+      <p class="note">Plan basado en Pelland et al. (Sports Medicine, 2026): 10–20 series efectivas por músculo y semana, repartidas en dos sesiones.</p>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs" role="tablist">
+  <div class="in">
+    <button class="tab" role="tab" data-view="today" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9v6M6 6v12M18 6v12M21 9v6M6 12h12"/></svg>Hoy</button>
+    <button class="tab" role="tab" data-view="history" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Historial</button>
+    <button class="tab" role="tab" data-view="settings" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Ajustes</button>
+  </div>
+</nav>
+
+<!-- detalle de ejercicio -->
+<div class="sheet" id="exsheet" hidden><div class="in" id="exbody"></div></div>
+
+<!-- cámara -->
+<div class="cam" id="cam" hidden>
+  <div class="stage">
+    <video id="video" playsinline muted></video>
+    <canvas class="ov" id="overlay"></canvas>
+    <div class="hud-top">
+      <button class="iconbtn" id="cam-close" aria-label="Cerrar cámara"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div class="t"><b id="cam-name"></b><span id="cam-sub"></span></div>
+      <button class="iconbtn" id="cam-flip" aria-label="Cambiar cámara"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9 13a3 3 0 0 1 5.2-2M15 13a3 3 0 0 1-5.2 2"/></svg></button>
+    </div>
+    <div class="counter"><div class="reps num" id="cam-reps">0</div><div class="lbl">reps<b class="num" id="cam-set">Serie 1/4</b></div></div>
+    <div class="rom" aria-hidden="true"><i id="rom"></i></div>
+    <div class="status" id="cam-status">Cargando detector…</div>
+    <div class="rest" id="rest" hidden>
+      <div class="ring">
+        <svg viewBox="0 0 220 220"><circle cx="110" cy="110" r="100" fill="none" stroke="rgb(255 255 255 / .18)" stroke-width="10"/><circle id="rest-arc" cx="110" cy="110" r="100" fill="none" stroke="#ff8a1f" stroke-width="10" stroke-linecap="round" stroke-dasharray="628.3" stroke-dashoffset="0"/></svg>
+        <div><div class="time num" id="rest-time">2:00</div><div class="sub" id="rest-sub">Descanso</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="lastset" id="lastset">
+      <label class="f">Peso kg<input id="cam-weight" type="number" inputmode="decimal" step="0.5" min="0"></label>
+      <label class="f">Reps serie anterior<input id="cam-lastreps" type="number" inputmode="numeric" min="0" disabled></label>
+      <div class="chips" id="cam-rir" aria-label="RIR de la última serie"></div>
+    </div>
+    <div class="ctlrow">
+      <button class="btn ghost" id="cam-minus" aria-label="Restar una repetición">−1</button>
+      <button class="btn ghost" id="cam-plus" aria-label="Sumar una repetición">+1</button>
+      <button class="btn primary" id="cam-end">Terminar serie</button>
+    </div>
+  </div>
+</div>
+
+<!-- diálogo de serie -->
+<div class="modal" id="modal" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="m-title">
+    <h3 id="m-title">Serie</h3>
+    <div class="fields">
+      <label class="f">Peso (kg)<input id="m-weight" type="number" inputmode="decimal" step="0.5" min="0"></label>
+      <label class="f">Reps<input id="m-reps" type="number" inputmode="numeric" min="0"></label>
+    </div>
+    <div><div class="note" style="margin-bottom:6px">RIR · repeticiones que te quedaban</div><div class="chips" id="m-rir"></div></div>
+    <label class="f">Notas<input id="m-notes" type="text" style="font-size:16px;font-weight:400" maxlength="120"></label>
+    <div class="row">
+      <button class="btn danger" id="m-delete">Borrar</button>
+      <button class="btn ghost" id="m-cancel">Cancelar</button>
+      <button class="btn primary" id="m-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="core.js"></script>
+<script>
+'use strict';
+const C = window.RepCore;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ---------- estado persistente ----------
+const KEY = 'repcam.v1';
+function defaults() {
+  return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {},
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true } };
+}
+let S = defaults();
+try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(defaults(), JSON.parse(raw)); S.settings = Object.assign(defaults().settings, S.settings); } catch (e) { /* sin almacenamiento */ }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('No se pudo guardar en este teléfono'); } }
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+const todayYmd = () => C.ymd(new Date());
+const weekNow = () => C.weekNumber(S.startDate, new Date());
+let selDay = C.dayKeyOf(new Date()) || 'L';
+const exById = (id) => C.PLAN.find((e) => e.id === id);
+const dayName = (k) => C.DAYS.find((d) => d.key === k).name;
+
+function logsToday(exId) { const d = todayYmd(); return S.logs.filter((l) => l.exId === exId && l.date === d).sort((a, b) => a.set - b.set); }
+function renumber(exId, date) { S.logs.filter((l) => l.exId === exId && l.date === date).sort((a, b) => a.ts - b.ts).forEach((l, i) => { l.set = i + 1; }); }
+function addLog(ex, o) {
+  const l = { id: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: Date.now(), date: todayYmd(), week: weekNow(),
+    day: ex.day, exId: ex.id, exName: ex.name, set: logsToday(ex.id).length + 1,
+    weight: o.weight ?? null, reps: o.reps, rir: o.rir ?? null, restS: o.restS ?? null, auto: !!o.auto, notes: o.notes || '' };
+  S.logs.push(l); save(); return l;
+}
+function rec(ex) { return C.recommend(ex, S.logs, S.overrides, weekNow(), todayYmd()); }
+function suggestedWeight(ex) {
+  const t = logsToday(ex.id); if (t.length) return t[t.length - 1].weight;
+  return rec(ex).weight;
+}
+
+// ---------- toast ----------
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600); }
+
+// ---------- vista Hoy ----------
+function renderWeek() {
+  const w = weekNow(), cw = C.cycleWeek(w);
+  $('#weekchip').innerHTML = 'Semana <b class="num">' + cw + '/8</b>' + (C.isDeload(w) ? '<br><span class="dl">Descarga</span>' : '<br>' + new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'short' }));
+}
+function renderDays() {
+  const tk = C.dayKeyOf(new Date());
+  $('#days').innerHTML = C.DAYS.map((d) => '<button class="day' + (d.key === tk ? ' today' : '') + '" data-day="' + d.key + '" aria-pressed="' + (d.key === selDay) + '"><b>' + d.name.slice(0, 2) + '</b><span>' + (d.key === tk ? 'hoy' : d.session.split(' ')[0]) + '</span></button>').join('');
+}
+function renderToday() {
+  renderWeek(); renderDays();
+  const d = C.DAYS.find((x) => x.key === selDay);
+  const tk = C.dayKeyOf(new Date());
+  const exs = C.PLAN.filter((e) => e.day === selDay);
+  const w = weekNow();
+  const total = exs.reduce((a, e) => a + C.plannedSets(e, S.overrides, w), 0);
+  $('#session').innerHTML = '<h2>' + d.name + ' · ' + esc(d.session) + '</h2><p class="num">' + exs.length + ' ejercicios · ' + total + ' series' + (C.isDeload(w) ? ' · descarga: mitad de series' : '') + '</p>';
+  let note = '';
+  if (!tk) { const wd = new Date().getDay(); note = '<div class="restday">Hoy ' + (wd === 6 ? 'sábado' : 'domingo') + ' descansas. Próxima sesión: Lunes · Torso. Puedes revisar cualquier día arriba.</div><div style="height:12px"></div>'; }
+  else if (tk !== selDay) note = '<div class="restday">Estás viendo el ' + d.name.toLowerCase() + '. Las series se guardan con la fecha de hoy.</div><div style="height:12px"></div>';
+  $('#restnote').innerHTML = note;
+  $('#exlist').innerHTML = exs.map((e) => {
+    const done = logsToday(e.id).length, pl = C.plannedSets(e, S.overrides, w), r = rec(e);
+    let dots = ''; for (let i = 0; i < pl; i++) dots += '<span class="dot' + (i < done ? ' on' : '') + '"></span>';
+    return '<button class="ex' + (done >= pl ? ' done' : '') + '" data-ex="' + e.id + '"><span class="name">' + esc(e.name) + '</span><span class="dots" aria-label="' + done + ' de ' + pl + ' series">' + dots + '</span><span class="meta num">' + pl + ' × ' + e.repsText + ' · RIR ' + e.rir + ' &nbsp;<span class="pill ' + r.action + '">' + esc(r.text) + '</span></span></button>';
+  }).join('');
+}
+$('#days').addEventListener('click', (ev) => { const b = ev.target.closest('[data-day]'); if (!b) return; selDay = b.dataset.day; renderToday(); });
+$('#exlist').addEventListener('click', (ev) => { const b = ev.target.closest('[data-ex]'); if (b) openEx(b.dataset.ex); });
+
+// ---------- dibujo de ejemplo (figura de palitos) ----------
+const SIDE_STAND = { hd: [100, 32], sh: [100, 55], hip: [100, 108], kn: [100, 146], an: [100, 182], toe: [113, 184], el: [100, 80], wr: [101, 104] };
+const FRONT_STAND = { hd: [100, 30], shL: [84, 55], shR: [116, 55], elL: [80, 80], elR: [120, 80], wrL: [78, 104], wrR: [122, 104], hipL: [91, 108], hipR: [109, 108], knL: [90, 146], knR: [110, 146], anL: [89, 182], anR: [111, 182] };
+const ext = (base, o) => Object.assign({}, base, o);
+const POSES = {
+  squat: { v: 's', A: ext(SIDE_STAND, { el: [86, 60], wr: [97, 54] }), B: ext(SIDE_STAND, { hd: [92, 72], sh: [90, 94], hip: [66, 132], kn: [112, 140], el: [76, 100], wr: [87, 92] }), bar: 1 },
+  hinge: { v: 's', A: ext(SIDE_STAND, { el: [101, 84], wr: [102, 110] }), B: ext(SIDE_STAND, { hip: [84, 106], kn: [96, 146], sh: [136, 86], hd: [154, 78], el: [138, 112], wr: [136, 138] }), bar: 1 },
+  hipthrust: { v: 's', A: { hd: [22, 104], sh: [42, 116], hip: [92, 166], kn: [136, 140], an: [150, 182], toe: [163, 184], el: [66, 148], wr: [90, 160] }, B: { hd: [22, 104], sh: [42, 116], hip: [94, 126], kn: [138, 130], an: [150, 182], toe: [163, 184], el: [66, 126], wr: [94, 120] }, bench: [6, 118, 44, 12], bar: 1 },
+  press_h: { v: 's', A: { hd: [42, 114], sh: [62, 120], hip: [124, 120], kn: [154, 136], an: [160, 182], toe: [172, 184], el: [64, 92], wr: [64, 64] }, B: { hd: [42, 114], sh: [62, 120], hip: [124, 120], kn: [154, 136], an: [160, 182], toe: [172, 184], el: [48, 132], wr: [62, 106] }, bench: [30, 126, 120, 10], bar: 1 },
+  press_v: { v: 's', A: { hd: [100, 48], sh: [100, 72], hip: [100, 128], kn: [140, 128], an: [142, 182], toe: [154, 184], el: [114, 96], wr: [106, 70] }, B: { hd: [100, 48], sh: [100, 72], hip: [100, 128], kn: [140, 128], an: [142, 182], toe: [154, 184], el: [106, 48], wr: [102, 24] }, bench: [80, 128, 40, 8], back: [70, 66, 8, 70], bar: 1 },
+  pull: { v: 'f', A: ext(FRONT_STAND, { elL: [66, 32], elR: [134, 32], wrL: [60, 10], wrR: [140, 10] }), B: ext(FRONT_STAND, { elL: [64, 82], elR: [136, 82], wrL: [70, 48], wrR: [130, 48] }), hbar: 1, cableTop: 1 },
+  row: { v: 's', A: { hd: [78, 70], sh: [82, 94], hip: [78, 150], kn: [128, 140], an: [156, 178], toe: [166, 170], el: [112, 108], wr: [144, 112] }, B: { hd: [74, 70], sh: [78, 94], hip: [78, 150], kn: [128, 140], an: [156, 178], toe: [166, 170], el: [58, 112], wr: [92, 120] }, cable: [200, 116] },
+  curl: { v: 's', A: ext(SIDE_STAND, { el: [100, 80], wr: [102, 106] }), B: ext(SIDE_STAND, { el: [100, 80], wr: [116, 60] }), db: 1 },
+  pushdown: { v: 's', A: ext(SIDE_STAND, { el: [104, 82], wr: [124, 68] }), B: ext(SIDE_STAND, { el: [103, 82], wr: [108, 108] }), cable: [126, 0] },
+  overhead: { v: 's', A: ext(SIDE_STAND, { hd: [104, 32], sh: [102, 56], el: [118, 32], wr: [100, 28] }), B: ext(SIDE_STAND, { hd: [104, 32], sh: [102, 56], el: [118, 32], wr: [146, 20] }), cable: [0, 30] },
+  raise: { v: 'f', A: FRONT_STAND, B: ext(FRONT_STAND, { elL: [60, 58], wrL: [38, 60], elR: [140, 58], wrR: [162, 60] }), db: 1 },
+  fly: { v: 'f', A: ext(FRONT_STAND, { wrL: [48, 112], elL: [62, 86], wrR: [152, 112], elR: [138, 86] }), B: ext(FRONT_STAND, { wrL: [92, 62], elL: [72, 72], wrR: [108, 62], elR: [128, 72] }), cables: [[0, 184, 'wrL'], [200, 184, 'wrR']] },
+  facepull: { v: 's', A: ext(SIDE_STAND, { el: [118, 70], wr: [146, 58] }), B: ext(SIDE_STAND, { el: [80, 58], wr: [104, 42] }), cable: [200, 40] },
+  legcurl: { v: 's', A: { hd: [24, 110], sh: [44, 118], hip: [100, 118], kn: [146, 120], an: [186, 122], toe: [196, 116], el: [48, 136], wr: [62, 138] }, B: { hd: [24, 110], sh: [44, 118], hip: [100, 118], kn: [146, 120], an: [162, 80], toe: [172, 74], el: [48, 136], wr: [62, 138] }, bench: [20, 126, 120, 10], cableAn: [200, 160] },
+  legext: { v: 's', A: { hd: [80, 44], sh: [80, 68], hip: [82, 120], kn: [128, 122], an: [130, 176], toe: [142, 180], el: [86, 94], wr: [96, 118] }, B: { hd: [80, 44], sh: [80, 68], hip: [82, 120], kn: [128, 122], an: [176, 112], toe: [184, 100], el: [86, 94], wr: [96, 118] }, bench: [60, 124, 70, 8], cableAn: [110, 200] },
+  calf: { v: 's', A: ext(SIDE_STAND, { an: [100, 180] }), B: { hd: [100, 20], sh: [100, 43], hip: [100, 96], kn: [100, 134], an: [102, 168], toe: [113, 182], el: [100, 68], wr: [101, 92] }, plate: [104, 182, 22, 5] },
+  crunch: { v: 's', A: { toe: [56, 184], an: [66, 182], kn: [100, 182], hip: [100, 140], hd: [104, 74], sh: [100, 96], el: [112, 82], wr: [106, 68] }, B: { toe: [56, 184], an: [66, 182], kn: [100, 182], hip: [100, 140], hd: [148, 128], sh: [132, 124], el: [140, 110], wr: [150, 116] }, cable: [130, 0] },
+  lunge: { v: 's', A: { hd: [100, 32], sh: [100, 55], hip: [100, 108], kn: [126, 144], an: [128, 182], toe: [140, 184], kn2: [72, 146], an2: [40, 128], el: [100, 80], wr: [100, 104] }, B: { hd: [100, 64], sh: [100, 86], hip: [100, 138], kn: [134, 146], an: [128, 182], toe: [140, 184], kn2: [78, 176], an2: [40, 128], el: [100, 112], wr: [100, 134] }, bench: [10, 130, 40, 10], db: 1 },
+};
+let demoRaf = null;
+function startDemo(canvas, pattern) {
+  cancelAnimationFrame(demoRaf);
+  const P = POSES[pattern]; const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1; canvas.width = 140 * dpr; canvas.height = 140 * dpr;
+  const cs = getComputedStyle(document.documentElement);
+  const fg = cs.getPropertyValue('--fg').trim(), acc = cs.getPropertyValue('--accent').trim(), mut = cs.getPropertyValue('--line').trim();
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const t0 = performance.now();
+  function frame(now) {
+    const ph = reduce ? 1 : (1 - Math.cos(((now - t0) / 2600) * Math.PI * 2)) / 2;
+    const p = {}; for (const k in P.A) { const a = P.A[k], b = P.B[k] || a; p[k] = [a[0] + (b[0] - a[0]) * ph, a[1] + (b[1] - a[1]) * ph]; }
+    ctx.setTransform(dpr * 0.7, 0, 0, dpr * 0.7, 0, 0); ctx.clearRect(0, 0, 200, 200);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = mut; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(4, 187); ctx.lineTo(196, 187); ctx.stroke();
+    ctx.fillStyle = mut;
+    if (P.bench) ctx.fillRect.apply(ctx, P.bench);
+    if (P.back) ctx.fillRect.apply(ctx, P.back);
+    if (P.plate) ctx.fillRect.apply(ctx, P.plate);
+    ctx.strokeStyle = acc; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+    const line = (a, b) => { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); };
+    if (P.cable) line(P.cable, p.wr);
+    if (P.cableAn) line(P.cableAn, p.an);
+    if (P.cables) P.cables.forEach((c) => line([c[0], c[1]], p[c[2]]));
+    if (P.cableTop) line([100, 0], [(p.wrL[0] + p.wrR[0]) / 2, p.wrL[1]]);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = fg; ctx.lineWidth = 7;
+    const bones = P.v === 's'
+      ? [['hd', 'sh'], ['sh', 'hip'], ['hip', 'kn'], ['kn', 'an'], ['an', 'toe'], ['sh', 'el'], ['el', 'wr'], ['hip', 'kn2'], ['kn2', 'an2']]
+      : [['shL', 'shR'], ['hipL', 'hipR'], ['shL', 'elL'], ['elL', 'wrL'], ['shR', 'elR'], ['elR', 'wrR'], ['hipL', 'knL'], ['knL', 'anL'], ['hipR', 'knR'], ['knR', 'anR']];
+    bones.forEach((b) => { if (p[b[0]] && p[b[1]]) line(p[b[0]], p[b[1]]); });
+    if (P.v === 'f') line([(p.shL[0] + p.shR[0]) / 2, p.shL[1]], [(p.hipL[0] + p.hipR[0]) / 2, p.hipL[1]]);
+    ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(p.hd[0], p.hd[1] - (P.v === 's' ? 0 : 6), 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = acc;
+    const wrists = P.v === 's' ? [p.wr] : [p.wrL, p.wrR];
+    if (P.bar) wrists.forEach((w) => { ctx.beginPath(); ctx.arc(w[0], w[1], 10, 0, Math.PI * 2); ctx.fill(); });
+    if (P.db) wrists.forEach((w) => { ctx.fillRect(w[0] - 9, w[1] - 4, 18, 8); });
+    if (P.hbar) { ctx.fillRect(p.wrL[0] - 8, p.wrL[1] - 3, p.wrR[0] - p.wrL[0] + 16, 6); }
+    if (!reduce) demoRaf = requestAnimationFrame(frame);
+  }
+  demoRaf = requestAnimationFrame(frame);
+}
+
+// ---------- detalle de ejercicio ----------
+let curEx = null;
+function openEx(id) { curEx = exById(id); renderEx(); $('#exsheet').hidden = false; $('#exsheet').scrollTop = 0; }
+function closeEx() { $('#exsheet').hidden = true; cancelAnimationFrame(demoRaf); curEx = null; renderToday(); }
+function renderEx() {
+  const e = curEx, w = weekNow(), r = rec(e), pl = C.plannedSets(e, S.overrides, w), done = logsToday(e.id);
+  const base = S.overrides[e.id] || e.sets;
+  const next = C.PLAN.filter((x) => x.day === e.day); const idx = next.indexOf(e); const nx = next[idx + 1];
+  $('#exbody').innerHTML =
+    '<button class="back" id="ex-back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>' + dayName(e.day) + '</button>' +
+    '<div class="exhead"><h2>' + esc(e.name) + '</h2><p>' + esc(e.equip) + ' · ' + esc(e.muscle) + (e.muscle2 ? ' + ' + esc(e.muscle2) : '') + '</p></div>' +
+    '<div class="specs num"><div><small>Series</small><b>' + pl + '</b></div><div><small>Reps</small><b>' + e.repsText + '</b></div><div><small>RIR</small><b>' + e.rir + '</b></div><div><small>Descanso</small><b>' + fmtRest(e.rest) + '</b></div></div>' +
+    '<div class="rec ' + r.action + '"><b>' + esc(r.text) + '</b><p>' + esc(r.detail) + '</p>' +
+      (r.action === 'addset' ? '<button class="btn small ghost" id="ex-addset" style="align-self:flex-start">Agregar serie al plan</button>' : '') + '</div>' +
+    '<div class="demo"><canvas id="democv" width="140" height="140" aria-label="Animación de ejemplo"></canvas><div><p>' + esc(e.notes || 'Controla la bajada y usa todo el recorrido.') + '</p><p class="note">' + camTip(e) + '</p><a href="https://www.youtube.com/results?search_query=' + encodeURIComponent(e.name + ' técnica') + '" target="_blank" rel="noopener">Ver videos de técnica ↗</a></div></div>' +
+    '<div class="stepper">Series en tu plan<button id="ex-minus" aria-label="Quitar serie">−</button><b class="num">' + base + '</b><button id="ex-plus" aria-label="Agregar serie">+</button></div>' +
+    '<div><h3 style="font-size:20px;margin-bottom:8px">Hoy <span class="num" style="color:var(--muted);font-family:var(--body);font-size:14px;font-weight:500">' + done.length + '/' + pl + '</span></h3><div class="sets">' +
+      (done.length ? done.map((l) => '<button class="set" data-log="' + l.id + '"><span class="n num">' + l.set + '</span><span class="v num">' + (l.weight != null ? C.fmtKg(l.weight) : '— kg') + ' × ' + l.reps + '<small>RIR ' + (l.rir ?? '—') + (l.restS != null ? ' · desc. ' + fmtRest(l.restS) : '') + '</small></span><span class="tag">' + (l.auto ? 'cámara' : 'manual') + '</span></button>').join('') : '<div class="empty">Aún no registras series de este ejercicio hoy.</div>') +
+    '</div></div>' +
+    '<div class="row"><button class="btn primary" id="ex-cam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Usar cámara</button><button class="btn ghost" id="ex-manual">Registrar a mano</button></div>' +
+    (nx ? '<button class="btn ghost small" id="ex-next" style="align-self:flex-start">Siguiente: ' + esc(nx.name) + ' →</button>' : '');
+  startDemo($('#democv'), e.pattern);
+  $('#ex-back').onclick = closeEx;
+  $('#ex-cam').onclick = () => openCam(e);
+  $('#ex-manual').onclick = () => openModal(null);
+  $('#ex-plus').onclick = () => setPlanned(e, base + 1);
+  $('#ex-minus').onclick = () => setPlanned(e, Math.max(1, base - 1));
+  if ($('#ex-addset')) $('#ex-addset').onclick = () => { setPlanned(e, base + 1); toast('Serie agregada al plan'); };
+  if (nx) $('#ex-next').onclick = () => openEx(nx.id);
+  $('#exbody').querySelectorAll('[data-log]').forEach((b) => { b.onclick = () => openModal(S.logs.find((l) => l.id === b.dataset.log)); });
+}
+function setPlanned(e, n) { if (n === e.sets) delete S.overrides[e.id]; else S.overrides[e.id] = n; save(); renderEx(); }
+function fmtRest(s) { s = Math.round(s); return s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : s + ' s'; }
+function camTip(e) {
+  const front = ['fly', 'raise', 'pull'].includes(e.pattern);
+  const map = { calf: 'Conteo con cámara experimental: pon el teléfono bajo, de lado, enfocando los pies.', legcurl: 'Teléfono de lado, a la altura del banco.', lunge: 'Teléfono de lado; se cuenta con la rodilla que más se dobla.' };
+  return map[e.pattern] || (front ? 'Pon el teléfono de frente, a 2–3 m, que se vea el cuerpo entero.' : 'Pon el teléfono de lado, a 2–3 m, que se vea el cuerpo entero.');
+}
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { if (!$('#modal').hidden) closeModal(); else if (!$('#cam').hidden) closeCam(); else if (!$('#exsheet').hidden) closeEx(); } });
+
+// ---------- diálogo de serie ----------
+let modalLog = null, modalRir = null, delArmed = false;
+function rirChips(el, val, onPick) {
+  el.innerHTML = [0, 1, 2, 3, 4].map((n) => '<button class="chip num" data-rir="' + n + '" aria-pressed="' + (val === n) + '">' + n + (n === 4 ? '+' : '') + '</button>').join('');
+  el.onclick = (ev) => { const b = ev.target.closest('[data-rir]'); if (!b) return; const n = +b.dataset.rir; const nv = val === n ? null : n; val = nv; el.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(+c.dataset.rir === nv))); onPick(nv); };
+}
+function openModal(log) {
+  const e = log ? exById(log.exId) : curEx;
+  modalLog = log; delArmed = false;
+  $('#m-title').textContent = log ? 'Serie ' + log.set + ' · ' + e.name : 'Nueva serie · ' + e.name;
+  $('#m-weight').value = log ? (log.weight ?? '') : (suggestedWeight(e) ?? '');
+  $('#m-reps').value = log ? log.reps : '';
+  $('#m-notes').value = log ? log.notes : '';
+  modalRir = log ? log.rir : null;
+  rirChips($('#m-rir'), modalRir, (v) => { modalRir = v; });
+  $('#m-delete').hidden = !log; $('#m-delete').textContent = 'Borrar';
+  $('#modal').hidden = false; setTimeout(() => (log ? $('#m-weight') : $('#m-reps')).focus(), 50);
+}
+function closeModal() { $('#modal').hidden = true; modalLog = null; }
+$('#m-cancel').onclick = closeModal;
+$('#modal').addEventListener('click', (ev) => { if (ev.target.id === 'modal') closeModal(); });
+$('#m-save').onclick = () => {
+  const wv = $('#m-weight').value, rv = $('#m-reps').value;
+  if (rv === '' || +rv < 0) { toast('Indica las repeticiones'); return; }
+  const weight = wv === '' ? null : Math.max(0, +wv);
+  if (modalLog) { Object.assign(modalLog, { weight, reps: +rv, rir: modalRir, notes: $('#m-notes').value.trim() }); save(); }
+  else addLog(curEx, { weight, reps: +rv, rir: modalRir, notes: $('#m-notes').value.trim() });
+  closeModal(); refreshAll(); toast('Serie guardada');
+};
+$('#m-delete').onclick = () => {
+  if (!delArmed) { delArmed = true; $('#m-delete').textContent = 'Toca otra vez para borrar'; return; }
+  const l = modalLog; S.logs = S.logs.filter((x) => x.id !== l.id); renumber(l.exId, l.date); save(); closeModal(); refreshAll(); toast('Serie borrada');
+};
+function refreshAll() { if (curEx && !$('#exsheet').hidden) renderEx(); renderToday(); if (!$('#view-history').hidden) renderHistory(); }
+
+// ---------- cámara y detección ----------
+const MP_VER = '0.10.14';
+const MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+let landmarker = null, stream = null, camRaf = null, wakeLock = null, audioCtx = null;
+const cam = { ex: null, counter: null, phase: 'wait', adj: 0, manualT: null, restStart: null, pendingRest: null, lastVisible: 0, lastSaved: null, lastVideoT: -1 };
+
+async function loadLandmarker() {
+  if (landmarker) return landmarker;
+  const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/vision_bundle.mjs');
+  const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/wasm');
+  const opts = (delegate) => ({ baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
+  try { landmarker = await vision.PoseLandmarker.createFromOptions(files, opts('GPU')); }
+  catch (e) { landmarker = await vision.PoseLandmarker.createFromOptions(files, opts('CPU')); }
+  return landmarker;
+}
+async function startStream() {
+  stopStream();
+  stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: S.settings.facing, width: { ideal: 960 }, height: { ideal: 720 } } });
+  const v = $('#video'); v.srcObject = stream; await v.play();
+  $('#cam').classList.toggle('mirror', S.settings.facing === 'user');
+}
+function stopStream() { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } }
+
+async function openCam(ex) {
+  if (!window.isSecureContext || !navigator.mediaDevices) { toast('La cámara necesita que la app se abra desde https'); return; }
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
+  Object.assign(cam, { ex, counter: new C.RepCounter(ex), phase: 'wait', adj: 0, manualT: null, restStart: null, pendingRest: null, lastVisible: performance.now(), lastSaved: null, lastVideoT: -1 });
+  $('#cam').hidden = false; $('#rest').hidden = true; document.body.classList.add('cam-open');
+  $('#cam-name').textContent = ex.name;
+  $('#cam-weight').value = suggestedWeight(ex) ?? '';
+  $('#cam-lastreps').value = ''; $('#cam-lastreps').disabled = true;
+  rirChips($('#cam-rir'), null, () => {}); $('#cam-rir').style.visibility = 'hidden';
+  updateHud(); setStatus('Cargando detector… la primera vez descarga unos 8 MB');
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  try {
+    await Promise.all([startStream(), loadLandmarker()]);
+  } catch (e) {
+    console.error(e);
+    setStatus(e && e.name === 'NotAllowedError' ? 'Sin permiso para la cámara. Actívalo en los ajustes del navegador, o usa +1 / −1 para contar a mano.' : 'No se pudo iniciar la detección. Puedes contar con +1 / −1 y terminar la serie a mano.');
+    return;
+  }
+  setStatus(camTip(ex) + ' Empieza cuando quieras.');
+  loop();
+}
+function closeCam() {
+  cancelAnimationFrame(camRaf); camRaf = null; stopStream();
+  try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
+  if (cam.phase === 'set' && curReps() > 0) endSet(false);
+  $('#cam').hidden = true; document.body.classList.remove('cam-open'); cam.ex = null; refreshAll();
+}
+$('#cam-close').onclick = closeCam;
+$('#cam-flip').onclick = async () => { S.settings.facing = S.settings.facing === 'user' ? 'environment' : 'user'; save(); try { await startStream(); } catch (e) { toast('No se pudo cambiar de cámara'); } };
+
+function curReps() { return Math.max(0, (cam.counter ? cam.counter.count() : 0) + cam.adj); }
+function setStatus(t) { const s = $('#cam-status'); if (!t) { s.hidden = true; return; } s.textContent = t; s.hidden = false; }
+function updateHud() {
+  const e = cam.ex, pl = C.plannedSets(e, S.overrides, weekNow()), done = logsToday(e.id).length;
+  $('#cam-reps').textContent = curReps();
+  const n = cam.phase === 'set' ? done + 1 : Math.min(done + 1, Math.max(pl, done + 1));
+  $('#cam-set').textContent = (done >= pl && cam.phase !== 'set') ? 'Completo ' + done + '/' + pl : 'Serie ' + n + '/' + pl;
+  $('#cam-sub').textContent = e.repsText + ' reps · RIR ' + e.rir + ' · descanso ' + fmtRest(e.rest);
+}
+
+const BONES = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28], [27, 31], [28, 32], [27, 29], [28, 30]];
+function drawPose(lm, W, H) {
+  const cv = $('#overlay'); const r = cv.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
+  const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!lm) return;
+  // misma geometría que object-fit: cover
+  const s = Math.max(cv.width / W, cv.height / H), ox = (cv.width - W * s) / 2, oy = (cv.height - H * s) / 2;
+  const P = (p) => [ox + p.x * W * s, oy + p.y * H * s];
+  ctx.lineWidth = 4 * dpr; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,138,31,.9)';
+  BONES.forEach(([a, b]) => { if ((lm[a].visibility ?? 1) < 0.5 || (lm[b].visibility ?? 1) < 0.5) return; const A = P(lm[a]), B = P(lm[b]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); });
+  ctx.fillStyle = '#fff';
+  for (let i = 11; i < 33; i++) { if ((lm[i].visibility ?? 1) < 0.5) continue; const A = P(lm[i]); ctx.beginPath(); ctx.arc(A[0], A[1], 4 * dpr, 0, Math.PI * 2); ctx.fill(); }
+}
+
+function loop() {
+  camRaf = requestAnimationFrame(loop);
+  const v = $('#video'); if (!landmarker || v.readyState < 2) return;
+  const now = performance.now();
+  let lmPx = null, raw = null;
+  if (v.currentTime !== cam.lastVideoT) {
+    cam.lastVideoT = v.currentTime;
+    const res = landmarker.detectForVideo(v, now);
+    raw = res.landmarks && res.landmarks[0];
+    const W = v.videoWidth, H = v.videoHeight;
+    if (raw) lmPx = raw.map((p) => ({ x: p.x * W, y: p.y * H, visibility: p.visibility }));
+    drawPose(raw, W, H);
+    const out = cam.counter.update(now, lmPx);
+    if (out.visible) cam.lastVisible = now;
+    if (out.rep) onRep(now);
+    const pr = cam.counter.progress(); $('#rom').style.height = pr == null ? '0%' : Math.round(Math.max(0, Math.min(1, pr)) * 100) + '%';
+    if (cam.phase === 'rest') { /* el anillo de descanso ocupa el centro */ }
+    else if (cam.phase !== 'set') {
+      if (!out.visible && now - cam.lastVisible > 1500) setStatus('No te veo completo. Aléjate un poco o mueve el teléfono.');
+      else if (cam.phase === 'wait' && out.visible) setStatus(null);
+    } else if (!out.visible && now - cam.lastVisible > 1500) setStatus('Te perdí de vista…'); else setStatus(null);
+  }
+  // fin automático de serie
+  if (cam.phase === 'set') {
+    const last = Math.max(cam.counter.lastRepT() || 0, cam.manualT || 0);
+    const idle = now - last, gone = now - cam.lastVisible;
+    if (idle > S.settings.autoEnd * 1000 || (gone > 6000 && idle > 3000)) endSet(true);
+  }
+  if (cam.phase === 'rest') tickRest(now);
+}
+function onRep(now) {
+  if (cam.phase !== 'set') beginSet(now);
+  $('#cam-reps').textContent = curReps();
+  if (navigator.vibrate) navigator.vibrate(20);
+}
+function beginSet(now) {
+  if (cam.restStart != null) {
+    const mv = cam.counter.firstMoveT() ?? now;
+    cam.pendingRest = Math.max(0, (Math.min(mv, now) - cam.restStart) / 1000);
+  }
+  cam.phase = 'set'; $('#rest').hidden = true; updateHud();
+}
+function endSet(auto) {
+  const reps = curReps();
+  const now = performance.now();
+  const last = Math.max(cam.counter.lastRepT() || 0, cam.manualT || 0) || now;
+  if (reps === 0 || (auto && reps < S.settings.minReps)) {
+    cam.counter.reset(); cam.adj = 0; cam.manualT = null;
+    cam.phase = cam.restStart != null ? 'rest' : 'wait'; if (cam.phase === 'rest') $('#rest').hidden = false;
+    updateHud(); return;
+  }
+  const wv = $('#cam-weight').value;
+  const l = addLog(cam.ex, { weight: wv === '' ? null : +wv, reps, rir: null, restS: cam.pendingRest, auto: true });
+  cam.lastSaved = l;
+  $('#cam-lastreps').value = reps; $('#cam-lastreps').disabled = false;
+  $('#cam-rir').style.visibility = 'visible';
+  rirChips($('#cam-rir'), null, (v) => { if (cam.lastSaved) { cam.lastSaved.rir = v; save(); } });
+  cam.counter.reset(); cam.adj = 0; cam.manualT = null; cam.pendingRest = null;
+  cam.restStart = last; cam.restBeeped = false; cam.phase = 'rest'; $('#rest').hidden = false; setStatus(null);
+  updateHud(); tickRest(now);
+  const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
+  if (done >= pl) {
+    const list = C.PLAN.filter((x) => x.day === cam.ex.day); const nx = list[list.indexOf(cam.ex) + 1];
+    toast('Ejercicio completo' + (nx ? '. Sigue: ' + nx.name : '. ¡Sesión terminada!'));
+  } else toast('Serie ' + l.set + ' guardada: ' + reps + ' reps');
+}
+function tickRest(now) {
+  const target = cam.ex.rest, el = (now - cam.restStart) / 1000, left = target - el;
+  const r = $('#rest');
+  r.classList.toggle('over', left < 0);
+  $('#rest-time').textContent = (left < 0 ? '+' : '') + fmtClock(Math.abs(left));
+  $('#rest-sub').textContent = left < 0 ? 'A la siguiente serie' : 'Descanso · objetivo ' + fmtRest(target);
+  $('#rest-arc').setAttribute('stroke-dashoffset', String(628.3 * Math.min(1, Math.max(0, el / target))));
+  if (left <= 0 && !cam.restBeeped) { cam.restBeeped = true; restAlarm(); }
+}
+function fmtClock(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function restAlarm() {
+  if (!S.settings.sound) return;
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  try { const t = audioCtx.currentTime; [0, 0.25].forEach((d) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.4, t + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.2); o.connect(g).connect(audioCtx.destination); o.start(t + d); o.stop(t + d + 0.22); }); } catch (e) {}
+}
+$('#cam-plus').onclick = () => { const now = performance.now(); if (cam.phase !== 'set') beginSet(now); cam.adj++; cam.manualT = now; $('#cam-reps').textContent = curReps(); };
+$('#cam-minus').onclick = () => { if (curReps() > 0) { cam.adj--; cam.manualT = performance.now(); } $('#cam-reps').textContent = curReps(); };
+$('#cam-end').onclick = () => { if (cam.phase === 'set') endSet(false); else toast('No hay una serie en curso'); };
+$('#cam-lastreps').addEventListener('change', () => { if (cam.lastSaved) { const v = +$('#cam-lastreps').value; if (v >= 0) { cam.lastSaved.reps = v; save(); toast('Reps corregidas'); } } });
+
+// ---------- historial ----------
+function renderHistory() {
+  const byDate = {};
+  S.logs.forEach((l) => { (byDate[l.date] = byDate[l.date] || []).push(l); });
+  const dates = Object.keys(byDate).sort().reverse();
+  if (!dates.length) { $('#history').innerHTML = '<div class="restday">Aún no hay series registradas. Ve a Hoy, abre un ejercicio y entrena con la cámara o regístralo a mano.</div>'; return; }
+  $('#history').innerHTML = dates.slice(0, 60).map((d) => {
+    const ls = byDate[d]; const ex = {}; ls.forEach((l) => { (ex[l.exId] = ex[l.exId] || []).push(l); });
+    const ton = ls.reduce((a, l) => a + (l.weight || 0) * l.reps, 0);
+    const dt = C.parseYmd(d);
+    return '<div class="card hday"><h3>' + dt.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'short' }) + '<small class="num">Sem ' + C.cycleWeek(ls[0].week) + ' · ' + ls.length + ' series · ' + Math.round(ton).toLocaleString('es-CL') + ' kg</small></h3>' +
+      Object.keys(ex).map((id) => { const arr = ex[id].sort((a, b) => a.set - b.set); return '<div class="hex"><b>' + esc(arr[0].exName) + '</b><div class="hsets">' + arr.map((l) => '<button class="hset num" data-log="' + l.id + '">' + (l.weight != null ? String(l.weight).replace('.', ',') : '—') + '×' + l.reps + (l.rir != null ? ' @' + l.rir : '') + '</button>').join('') + '</div></div>'; }).join('') + '</div>';
+  }).join('');
+}
+$('#history').addEventListener('click', (ev) => { const b = ev.target.closest('[data-log]'); if (!b) return; const l = S.logs.find((x) => x.id === b.dataset.log); curEx = exById(l.exId); openModal(l); });
+
+function downloadBlob(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+function loadScript(src) { return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }); }
+$('#btn-xlsx').onclick = async () => {
+  if (!S.logs.length) { toast('No hay datos para exportar'); return; }
+  try { if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'); } catch (e) { toast('Sin conexión para generar el Excel'); return; }
+  const rows = S.logs.slice().sort((a, b) => a.ts - b.ts).map((l) => ({
+    'Fecha': l.date, 'Semana': C.cycleWeek(l.week), 'Día': dayName(l.day), 'Ejercicio': l.exName, 'Serie': l.set,
+    'Peso (kg)': l.weight, 'Reps': l.reps, 'RIR': l.rir, 'Tonelaje (kg)': l.weight != null ? l.weight * l.reps : null,
+    'Descanso (s)': l.restS != null ? Math.round(l.restS) : null, 'Origen': l.auto ? 'Cámara' : 'Manual', 'Notas': l.notes }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [12, 8, 11, 40, 6, 10, 6, 6, 13, 12, 9, 30].map((w) => ({ wch: w }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Registro');
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'RepCam_' + todayYmd() + '.xlsx');
+};
+$('#btn-backup').onclick = () => downloadBlob(new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' }), 'RepCam_respaldo_' + todayYmd() + '.json');
+$('#btn-restore').onclick = () => $('#file-restore').click();
+$('#file-restore').onchange = async (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  try { const d = JSON.parse(await f.text()); if (!Array.isArray(d.logs)) throw 0; S = Object.assign(defaults(), d); S.settings = Object.assign(defaults().settings, d.settings); save(); loadSettings(); refreshAll(); toast('Copia restaurada: ' + S.logs.length + ' series'); }
+  catch (e) { toast('Ese archivo no es una copia de RepCam'); }
+  ev.target.value = '';
+};
+$('#btn-resetplan').onclick = () => { S.overrides = {}; save(); refreshAll(); toast('Series del plan restablecidas'); };
+
+// ---------- ajustes ----------
+function loadSettings() {
+  $('#set-start').value = S.startDate; $('#set-autoend').value = String(S.settings.autoEnd);
+  $('#set-minreps').value = String(S.settings.minReps); $('#set-facing').value = S.settings.facing; $('#set-sound').value = S.settings.sound ? '1' : '0';
+}
+$('#set-start').onchange = (e) => { if (e.target.value) { S.startDate = C.ymd(C.mondayOf(C.parseYmd(e.target.value))); e.target.value = S.startDate; save(); renderToday(); } };
+$('#set-autoend').onchange = (e) => { S.settings.autoEnd = +e.target.value; save(); };
+$('#set-minreps').onchange = (e) => { S.settings.minReps = +e.target.value; save(); };
+$('#set-facing').onchange = (e) => { S.settings.facing = e.target.value; save(); };
+$('#set-sound').onchange = (e) => { S.settings.sound = e.target.value === '1'; save(); };
+
+// ---------- navegación ----------
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', String(x === t)));
+  ['today', 'history', 'settings'].forEach((v) => { $('#view-' + v).hidden = v !== t.dataset.view; });
+  if (t.dataset.view === 'history') renderHistory();
+  if (t.dataset.view === 'today') renderToday();
+  window.scrollTo(0, 0);
+}));
+document.addEventListener('visibilitychange', async () => { if (!document.hidden && !$('#cam').hidden && 'wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} } });
+
+loadSettings(); renderToday();
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

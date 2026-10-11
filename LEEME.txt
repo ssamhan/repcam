@@ -1,0 +1,21 @@
+RepCam – cómo instalarla en tu Android
+
+La cámara del navegador solo funciona en páginas https, así que la app debe alojarse en un hosting con https.
+
+Opción recomendada: GitHub Pages (gratis)
+1. Crea un repositorio público en github.com, por ejemplo "repcam".
+2. Sube todos los archivos de esta carpeta (index.html, core.js, sw.js, manifest.webmanifest y los íconos).
+3. En el repositorio: Settings → Pages → Branch: main → / (root) → Save.
+4. A los 1–2 minutos queda en https://TU-USUARIO.github.io/repcam/
+
+En el teléfono
+1. Abre esa dirección en Chrome.
+2. Menú ⋮ → "Instalar app" (o "Agregar a pantalla principal").
+3. La primera vez que uses la cámara, acepta el permiso. El detector (~8 MB) se descarga una vez y queda guardado para usarse sin conexión.
+
+Consejos para que cuente bien
+- Teléfono fijo (apoyado en el rack o un trípode) a 2–3 m, con el cuerpo entero en cuadro.
+- De lado para sentadillas, press, remos y curls; de frente para elevaciones laterales, cruces y jalón.
+- Si cuenta mal, usa +1 / −1 o corrige las reps después. El peso siempre lo ingresas tú.
+
+Tus datos quedan solo en el teléfono. Haz una "Copia de seguridad" en Historial de vez en cuando.
