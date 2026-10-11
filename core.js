@@ -109,7 +109,7 @@
   }
   SideTracker.prototype.reset = function () {
     this.buf = []; this.ema = null; this.count = 0; this.visitedOpp = false;
-    this.lastRepT = null; this.firstMoveT = null; this.zone = 'none'; this.lastSeenT = null; this.range = 0; this.norm = null;
+    this.lastRepT = null; this.firstMoveT = null; this.zone = 'none'; this.lastSeenT = null; this.range = 0; this.norm = null; this.frames = 0; this.okFrames = 0;
   };
   SideTracker.prototype.push = function (t, v) {
     this.ema = this.ema == null ? v : this.ema + 0.45 * (v - this.ema);
@@ -134,32 +134,178 @@
     return false;
   };
 
-  function RepCounter(ex) {
-    const mr = MIN_RANGE[ex.metric] || 30;
-    this.metric = ex.metric;
-    this.sides = { L: new SideTracker(mr, ex.startHigh), R: new SideTracker(mr, ex.startHigh), C: new SideTracker(mr, ex.startHigh) };
-    this.lastVisibleT = null;
+  // ---------- rasgos de postura ----------
+  // Ángulos y posiciones relativas que no dependen de la distancia a la cámara.
+  function features(lm) {
+    if (!lm) return null;
+    const v = function (i) { return lm[i] && (lm[i].visibility ?? 1) >= VIS; };
+    const f = { arms: [], kneeMax: null, kneeMin: null };
+    // torso: el lado con mejor visibilidad (o el promedio si se ven ambos)
+    let sh = null, hip = null;
+    if (v(11) && v(12) && v(23) && v(24)) { sh = mid(lm[11], lm[12]); hip = mid(lm[23], lm[24]); }
+    else ['L', 'R'].forEach(function (k) { const S = SIDE[k]; if (!sh && v(S.sh) && v(S.hip)) { sh = lm[S.sh]; hip = lm[S.hip]; } });
+    if (sh) {
+      f.torsoLen = dist(sh, hip);
+      // 0° = tronco vertical, 90° = acostado
+      f.torso = f.torsoLen ? Math.acos(Math.max(-1, Math.min(1, (hip.y - sh.y) / f.torsoLen))) * 180 / Math.PI : null;
+    }
+    const L = f.torsoLen || 1;
+    ['L', 'R'].forEach(function (k) {
+      const S = SIDE[k];
+      if (v(S.sh) && v(S.el) && v(S.wr)) {
+        const a = lm[S.sh], e = lm[S.el], w = lm[S.wr];
+        const ua = Math.hypot(e.x - a.x, e.y - a.y);
+        f.arms.push({
+          side: k,
+          elbow: angle(a, e, w),
+          wrRel: (w.y - a.y) / L,          // + = muñeca bajo el hombro
+          elRel: (e.y - a.y) / L,
+          upperArm: ua ? Math.acos(Math.max(-1, Math.min(1, (e.y - a.y) / ua))) * 180 / Math.PI : null, // 0° = brazo colgando
+          wrHip: v(S.hip) ? (w.y - lm[S.hip].y) / L : null
+        });
+      }
+      if (v(S.hip) && v(S.kn) && v(S.an)) {
+        const kn = angle(lm[S.hip], lm[S.kn], lm[S.an]);
+        f.kneeMax = f.kneeMax == null ? kn : Math.max(f.kneeMax, kn);
+        f.kneeMin = f.kneeMin == null ? kn : Math.min(f.kneeMin, kn);
+      }
+      if (f.hip == null && v(S.sh) && v(S.hip) && v(S.kn)) f.hip = angle(lm[S.sh], lm[S.hip], lm[S.kn]);
+    });
+    if (v(11) && v(12) && v(15) && v(16)) { const sw = dist(lm[11], lm[12]); if (sw) f.wristDist = dist(lm[15], lm[16]) / sw; }
+    return f;
   }
-  RepCounter.prototype.reset = function () { for (const k in this.sides) this.sides[k].reset(); };
-  RepCounter.prototype.update = function (t, lm) {
-    const vals = lm ? metricValues(this.metric, lm) : {};
-    let any = false, rep = false;
-    for (const k in vals) { any = true; if (this.sides[k].push(t, vals[k])) rep = true; }
-    if (any) this.lastVisibleT = t;
-    return { visible: any, rep: rep };
+  function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+  const lt = function (a, b) { return a != null && a < b; }, gt = function (a, b) { return a != null && a > b; };
+  const anyArm = function (f, fn) { return f.arms.some(fn); };
+
+  // ---------- patrones de postura por ejercicio ----------
+  // start: posición de inicio que hay que sostener ~0,7 s para empezar a contar.
+  // hold: condición que debe cumplirse durante las repeticiones (si se pierde, deja de contar).
+  // say: qué decirle al usuario cuando no está en posición.
+  const GATES = {
+    squat: { start: function (f) { return lt(f.torso, 35) && gt(f.kneeMax, 145) && anyArm(f, function (a) { return lt(a.wrRel, 0.4) && lt(a.elbow, 120); }); },
+             hold: function (f) { return lt(f.torso, 70) && anyArm(f, function (a) { return lt(a.wrRel, 0.6); }); },
+             say: 'Párate derecho con la barra sobre la espalda' },
+    lunge: { start: function (f) { return lt(f.torso, 40) && gt(f.kneeMax, 135); },
+             hold: function (f) { return lt(f.torso, 55); },
+             say: 'Párate derecho con el pie de atrás en el banco' },
+    hinge: { start: function (f) { return lt(f.torso, 30) && gt(f.kneeMax, 140) && anyArm(f, function (a) { return gt(a.wrRel, 0.7) && gt(a.elbow, 140); }); },
+             hold: function (f) { return anyArm(f, function (a) { return gt(a.elbow, 130) && gt(a.wrRel, 0.4); }); },
+             say: 'Párate derecho con la barra a la altura de los muslos' },
+    hipthrust: { start: function (f) { return lt(f.kneeMin, 125) && gt(f.torso, 30); },
+             hold: function (f) { return lt(f.kneeMin, 145); },
+             say: 'Apoya la espalda en el banco con los pies firmes en el suelo' },
+    press_h: { start: function (f) { return gt(f.torso, 45) && anyArm(f, function (a) { return gt(a.elbow, 140) && lt(a.wrRel, -0.35); }); },
+             hold: function (f) { return gt(f.torso, 40); },
+             say: 'Acuéstate en el banco con los brazos estirados hacia arriba' },
+    press_v: { start: function (f) { return lt(f.torso, 35) && anyArm(f, function (a) { return lt(a.wrRel, 0.25) && lt(a.elbow, 120); }); },
+             hold: function (f) { return lt(f.torso, 40) && anyArm(f, function (a) { return lt(a.wrRel, 0.4); }); },
+             say: 'Siéntate derecho con las manos a la altura de los hombros' },
+    pull: { start: function (f) { return anyArm(f, function (a) { return lt(a.wrRel, -0.5) && gt(a.elbow, 120); }); },
+             hold: function (f) { return anyArm(f, function (a) { return lt(a.wrRel, 0.25); }); },
+             say: 'Toma la barra con los brazos estirados arriba' },
+    row: { start: function (f) { return (gt(f.torso, 25) || lt(f.hip, 130)) && anyArm(f, function (a) { return gt(a.elbow, 135); }); },
+             hold: function (f) { return gt(f.torso, 20) || lt(f.hip, 135); },
+             say: 'Inclínate o siéntate con los brazos estirados hacia la carga' },
+    curl: { start: function (f) { return anyArm(f, function (a) { return gt(a.elbow, 140) && lt(a.upperArm, 30) && gt(a.wrRel, 0.5); }); },
+             hold: function (f) { return anyArm(f, function (a) { return lt(a.upperArm, 45); }); },
+             say: 'Brazos estirados abajo y codos pegados al cuerpo' },
+    pushdown: { start: function (f) { return anyArm(f, function (a) { return lt(a.upperArm, 35) && lt(a.elbow, 115); }); },
+             hold: function (f) { return anyArm(f, function (a) { return lt(a.upperArm, 45); }); },
+             say: 'Codos pegados al cuerpo y antebrazos arriba' },
+    overhead: { start: function (f) { return anyArm(f, function (a) { return lt(a.elRel, -0.25) && lt(a.elbow, 110); }); },
+             hold: function (f) { return anyArm(f, function (a) { return lt(a.elRel, -0.05); }); },
+             say: 'Codos arriba junto a la cabeza' },
+    raise: { start: function (f) { return anyArm(f, function (a) { return lt(a.upperArm, 30) && gt(a.wrRel, 0.5); }); },
+             hold: function (f) { return anyArm(f, function (a) { return gt(a.elbow, 110); }); },
+             say: 'De frente a la cámara, brazos abajo a los lados' },
+    fly: { start: function (f) { return gt(f.wristDist, 1.6) && anyArm(f, function (a) { return gt(a.wrRel, 0.3); }); },
+             hold: function (f) { return f.wristDist != null; },
+             say: 'De frente a la cámara, brazos abiertos y abajo' },
+    facepull: { start: function (f) { return anyArm(f, function (a) { return gt(a.elbow, 140) && gt(a.upperArm, 50) && lt(a.wrRel, 0.4); }); },
+             hold: function (f) { return anyArm(f, function (a) { return gt(a.upperArm, 40); }); },
+             say: 'Brazos estirados hacia la polea a la altura de la cara' },
+    legcurl: { start: function (f) { return gt(f.torso, 55) && gt(f.kneeMax, 140); },
+             hold: function (f) { return gt(f.torso, 45); },
+             say: 'Acuéstate boca abajo con las piernas estiradas' },
+    legext: { start: function (f) { return lt(f.hip, 130) && lt(f.torso, 45) && lt(f.kneeMin, 120); },
+             hold: function (f) { return lt(f.hip, 140); },
+             say: 'Siéntate en el banco con la rodilla doblada' },
+    calf: { start: function (f) { return (lt(f.torso, 25) && gt(f.kneeMax, 150)) || lt(f.hip, 130); },
+             hold: function (f) { return (lt(f.torso, 30) && gt(f.kneeMax, 140)) || lt(f.hip, 135); },
+             say: 'Quédate quieto con los talones abajo' },
+    crunch: { start: function (f) { return lt(f.kneeMin, 120) && lt(f.torso, 35) && anyArm(f, function (a) { return lt(a.wrRel, 0.3); }); },
+             hold: function (f) { return lt(f.kneeMin, 130); },
+             say: 'Arrodíllate con la cuerda junto a la cabeza' },
   };
-  RepCounter.prototype.best = function () {
-    let b = this.sides.L;
-    for (const k in this.sides) if (this.sides[k].count > b.count) b = this.sides[k];
-    return b;
+
+  // ---------- contador con compuerta de postura ----------
+  // Solo cuenta después de reconocer la posición de inicio. Cada rep válida debe:
+  // mantener la postura del ejercicio y tener un recorrido parecido al de tus series anteriores.
+  function RepCounter(ex, typicalRange) {
+    this.ex = ex; this.metric = ex.metric; this.gate = GATES[ex.pattern];
+    this.baseMin = MIN_RANGE[ex.metric] || 30;
+    this.minRange = typicalRange ? Math.max(this.baseMin, typicalRange * 0.55) : this.baseMin;
+    this.sides = { L: new SideTracker(this.minRange, ex.startHigh), R: new SideTracker(this.minRange, ex.startHigh), C: new SideTracker(this.minRange, ex.startHigh) };
+    this.reps = 0; this.base = 0; this.lastVisibleT = null; this.maxRange = 0;
+    this.state = 'search'; this.startSince = null; this.badSince = null; this.reason = 'camera'; this.lastRep = null;
+  }
+  RepCounter.prototype.resetTrackers = function () {
+    this.base = this.reps;
+    for (const k in this.sides) this.sides[k].reset();
   };
-  RepCounter.prototype.count = function () { return this.best().count; };
-  RepCounter.prototype.lastRepT = function () {
-    let t = null; for (const k in this.sides) { const s = this.sides[k]; if (s.lastRepT != null && (t == null || s.lastRepT > t)) t = s.lastRepT; } return t;
+  RepCounter.prototype.reset = function () {
+    this.reps = 0; this.base = 0; this.lastRep = null; this.maxRange = 0;
+    for (const k in this.sides) this.sides[k].reset();
+    this.state = 'search'; this.startSince = null; this.badSince = null;
   };
-  RepCounter.prototype.firstMoveT = function () { return this.best().firstMoveT; };
+  RepCounter.prototype.update = function (t, lm, quality) {
+    const out = { visible: false, rep: false, armed: false, disarmed: false };
+    const seeJoints = quality == null ? !!lm : quality >= 0.5;
+    if (seeJoints) { this.lastVisibleT = t; out.visible = true; }
+    const f = seeJoints ? features(lm) : null;
+    const g = this.gate;
+    const startOk = !!(f && g && g.start(f)), holdOk = !!(f && g && g.hold(f));
+
+    if (this.state === 'search') {
+      this.reason = !seeJoints ? 'camera' : 'posture';
+      if (startOk) {
+        if (this.startSince == null) this.startSince = t;
+        if (t - this.startSince >= 700) { this.state = 'armed'; this.badSince = null; this.resetTrackers(); out.armed = true; }
+      } else this.startSince = null;
+    } else {
+      const lost = this.lastVisibleT == null || t - this.lastVisibleT > 1500;
+      if (!holdOk) { if (this.badSince == null) this.badSince = t; } else this.badSince = null;
+      if (lost || (this.badSince != null && t - this.badSince > 1200)) {
+        this.state = 'search'; this.startSince = null; this.reason = lost ? 'camera' : 'posture'; out.disarmed = true;
+      }
+    }
+
+    if (this.state === 'armed' && seeJoints) {
+      const vals = metricValues(this.metric, lm);
+      for (const k in vals) {
+        const s = this.sides[k];
+        s.frames++; if (holdOk) s.okFrames++;
+        if (s.push(t, vals[k])) {
+          const ratio = s.frames ? s.okFrames / s.frames : 0;
+          if (ratio >= 0.7) { if (s.range > this.maxRange) this.maxRange = s.range; }
+          else s.count--;              // rep con mala postura: no cuenta
+          s.frames = 0; s.okFrames = 0;
+        }
+      }
+      let best = 0; for (const k in this.sides) if (this.sides[k].count > best) best = this.sides[k].count;
+      if (this.base + best > this.reps) { this.reps = this.base + best; this.lastRep = t; out.rep = true; }
+    }
+    out.state = this.state; out.reason = this.reason;
+    return out;
+  };
+  RepCounter.prototype.count = function () { return this.reps; };
+  RepCounter.prototype.lastRepT = function () { return this.lastRep; };
+  RepCounter.prototype.firstMoveT = function () {
+    let t = null; for (const k in this.sides) { const s = this.sides[k]; if (s.firstMoveT != null && (t == null || s.firstMoveT < t)) t = s.firstMoveT; } return t;
+  };
+  RepCounter.prototype.typicalRange = function () { return this.maxRange || null; };
   RepCounter.prototype.progress = function () {
-    // 0..1 dentro del recorrido, para la barra de la UI
     let b = null; for (const k in this.sides) { const s = this.sides[k]; if (s.norm != null && (!b || s.range > b.range)) b = s; }
     if (!b) return null;
     return b.startHigh ? 1 - b.norm : b.norm;
@@ -260,6 +406,6 @@
   const api = { PLAN: PLAN, DAYS: DAYS, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
-    jointsFor: jointsFor, detectionQuality: detectionQuality, JOINT_HELP: JOINT_HELP };
+    jointsFor: jointsFor, detectionQuality: detectionQuality, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

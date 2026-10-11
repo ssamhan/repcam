@@ -16,6 +16,7 @@ En el teléfono
 Consejos para que cuente bien
 - Teléfono fijo (apoyado en el rack o un trípode) a 2–3 m, con el cuerpo entero en cuadro.
 - De lado para sentadillas, press, remos y curls; de frente para elevaciones laterales, cruces y jalón.
+- La app solo cuenta después de reconocer la posición de inicio del ejercicio (te lo dice por voz y el indicador se pone verde).
 - Si cuenta mal, usa +1 / −1 o corrige las reps después. El peso siempre lo ingresas tú.
 
 Tus datos quedan solo en el teléfono. Haz una "Copia de seguridad" en Historial de vez en cuando.
