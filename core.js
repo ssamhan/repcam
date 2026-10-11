@@ -234,8 +234,32 @@
   function topWeight(session) { return session.sets.reduce(function (m, s) { return s.weight != null && s.weight > m ? s.weight : m; }, 0); }
   function fmtKg(x) { return (Math.round(x * 100) / 100).toString().replace('.', ',') + ' kg'; }
 
+  // articulaciones que necesita ver la cámara para cada métrica
+  function jointsFor(metric) {
+    const s = function (keys) { return { L: keys.map(function (k) { return SIDE.L[k]; }), R: keys.map(function (k) { return SIDE.R[k]; }) }; };
+    switch (metric) {
+      case 'elbow': return s(['sh', 'el', 'wr']);
+      case 'knee': case 'kneeMin': return s(['hip', 'kn', 'an']);
+      case 'hip': return s(['sh', 'hip', 'kn']);
+      case 'shoulderAbd': return s(['hip', 'sh', 'el']);
+      case 'heel': return s(['hip', 'an', 'toe']);
+      case 'wristDist': return { C: [11, 12, 15, 16] };
+    }
+    return { C: [] };
+  }
+  // calidad 0..1: la peor visibilidad del mejor lado
+  function detectionQuality(metric, lm) {
+    if (!lm) return 0;
+    const j = jointsFor(metric); let best = 0;
+    for (const k in j) { let mn = 1; j[k].forEach(function (i) { const v = lm[i] ? (lm[i].visibility ?? 1) : 0; if (v < mn) mn = v; }); if (mn > best) best = mn; }
+    return best;
+  }
+  const JOINT_HELP = { elbow: 'hombro, codo y muñeca', knee: 'cadera, rodilla y tobillo', kneeMin: 'cadera, rodilla y tobillo', hip: 'hombro, cadera y rodilla',
+    shoulderAbd: 'cadera, hombro y codo', heel: 'cadera, tobillo y punta del pie', wristDist: 'ambos hombros y ambas muñecas' };
+
   const api = { PLAN: PLAN, DAYS: DAYS, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
-    dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg };
+    dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
+    jointsFor: jointsFor, detectionQuality: detectionQuality, JOINT_HELP: JOINT_HELP };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

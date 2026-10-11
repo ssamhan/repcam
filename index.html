@@ -135,7 +135,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01e
 .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 input, select { font: 600 20px var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; min-width: 0; }
-input[type="date"] { font-size: 16px; }
+input[type="date"], select { font-size: 16px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
@@ -172,12 +172,20 @@ input[type="date"] { font-size: 16px; }
 .rom { position: absolute; right: 14px; bottom: 18px; width: 12px; height: 38%; border-radius: 6px; background: rgb(255 255 255 / .2); overflow: hidden; }
 .rom i { position: absolute; left: 0; right: 0; bottom: 0; background: #ff8a1f; border-radius: 6px; transition: height .08s linear; }
 .status { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); background: rgb(0 0 0 / .62); padding: 10px 14px; border-radius: 12px; font-size: 15px; text-align: center; max-width: 86%; }
-.rest { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / .55); }
+.rest { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / .55); pointer-events: none; }
+.hud-top, .hud-tools { z-index: 2; }
 .rest .ring { position: relative; width: 220px; height: 220px; display: grid; place-items: center; text-align: center; }
 .rest svg { position: absolute; inset: 0; transform: rotate(-90deg); }
 .rest .time { font-family: var(--display); font-size: 64px; font-weight: 700; line-height: 1; }
 .rest .sub { font-size: 14px; opacity: .85; }
 .rest.over .time { color: #ff8a1f; }
+.hud-tools { position: absolute; left: 14px; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 66px); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.qual { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 99px; background: rgb(0 0 0 / .55); display: inline-flex; align-items: center; gap: 6px; }
+.qual::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--q, #888); }
+.qual.good { --q: #3ecf8e; } .qual.mid { --q: #f5b942; } .qual.bad { --q: #ff6b6b; }
+.zoom { margin-left: auto; display: flex; align-items: center; gap: 8px; background: rgb(0 0 0 / .55); padding: 4px 10px; border-radius: 99px; font-size: 13px; }
+.zoom input { width: 120px; padding: 0; border: 0; background: none; accent-color: #ff8a1f; }
+.iconbtn[aria-pressed="false"] { opacity: .55; }
 .cam .controls { background: #0d0f12; padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 12px); display: flex; flex-direction: column; gap: 10px; }
 .lastset { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
 .lastset .chips { grid-column: 1 / -1; align-items: center; }
@@ -191,7 +199,7 @@ input[type="date"] { font-size: 16px; }
 .ctlrow { display: grid; grid-template-columns: 64px 64px 1fr; gap: 8px; }
 .ctlrow .btn { padding: 14px 0; font-size: 20px; }
 .ctlrow .btn.primary { font-size: 16px; }
-.cam-open .toast { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 70px); }
+.cam-open .toast { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 116px); }
 .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 60; max-width: 90%; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .rom i { transition: none; } }
 @media (max-width: 380px) { .demo { grid-template-columns: 1fr; justify-items: center; } .specs b { font-size: 19px; } }
@@ -232,7 +240,13 @@ input[type="date"] { font-size: 16px; }
         <div class="setting"><span>Cerrar serie tras<small>Segundos sin repeticiones</small></span><select id="set-autoend"><option>5</option><option>8</option><option>10</option><option>15</option><option>20</option></select></div>
         <div class="setting"><span>Mínimo de reps<small>Movimientos sueltos con menos reps no se guardan solos</small></span><select id="set-minreps"><option>1</option><option>2</option><option>3</option></select></div>
         <div class="setting"><span>Cámara<small>La trasera ve más campo y detecta mejor</small></span><select id="set-facing"><option value="environment">Trasera</option><option value="user">Frontal</option></select></div>
-        <div class="setting"><span>Aviso de descanso<small>Pitido y vibración al terminar</small></span><select id="set-sound"><option value="1">Activado</option><option value="0">Desactivado</option></select></div>
+        <div class="setting"><span>Precisión del detector<small>Más precisión consume más batería. "Preciso" ayuda cuando estás lejos.</small></span><select id="set-model"><option value="lite">Rápido</option><option value="full">Equilibrado</option><option value="heavy">Preciso</option></select></div>
+      </div>
+      <div class="card">
+        <h3>Avisos</h3>
+        <div class="setting"><span>Voz<small>Cuenta las reps en voz alta y avisa el descanso</small></span><select id="set-voice"><option value="1">Activada</option><option value="0">Desactivada</option></select></div>
+        <div class="setting"><span>Aviso previo<small>Segundos antes de terminar el descanso</small></span><select id="set-prewarn"><option value="0">Sin aviso</option><option>5</option><option>10</option><option>15</option><option>20</option></select></div>
+        <div class="setting"><span>Pitido y vibración<small>Al terminar el descanso</small></span><select id="set-sound"><option value="1">Activado</option><option value="0">Desactivado</option></select></div>
       </div>
       <div class="card">
         <h3>Datos</h3>
@@ -268,6 +282,11 @@ input[type="date"] { font-size: 16px; }
       <button class="iconbtn" id="cam-close" aria-label="Cerrar cámara"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       <div class="t"><b id="cam-name"></b><span id="cam-sub"></span></div>
       <button class="iconbtn" id="cam-flip" aria-label="Cambiar cámara"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9 13a3 3 0 0 1 5.2-2M15 13a3 3 0 0 1-5.2 2"/></svg></button>
+    </div>
+    <div class="hud-tools">
+      <span class="qual" id="cam-qual">Buscando…</span>
+      <button class="iconbtn" id="cam-voice" aria-label="Voz" aria-pressed="true" style="width:36px;height:36px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
+      <label class="zoom" id="zoomwrap" hidden>Zoom <input type="range" id="cam-zoom" aria-label="Zoom de la cámara"><b class="num" id="zoomval">1×</b></label>
     </div>
     <div class="counter"><div class="reps num" id="cam-reps">0</div><div class="lbl">reps<b class="num" id="cam-set">Serie 1/4</b></div></div>
     <div class="rom" aria-hidden="true"><i id="rom"></i></div>
@@ -324,7 +343,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const KEY = 'repcam.v1';
 function defaults() {
   return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {},
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true } };
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null } };
 }
 let S = defaults();
 try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(defaults(), JSON.parse(raw)); S.settings = Object.assign(defaults().settings, S.settings); } catch (e) { /* sin almacenamiento */ }
@@ -488,7 +507,7 @@ function fmtRest(s) { s = Math.round(s); return s >= 60 ? Math.floor(s / 60) + '
 function camTip(e) {
   const front = ['fly', 'raise', 'pull'].includes(e.pattern);
   const map = { calf: 'Conteo con cámara experimental: pon el teléfono bajo, de lado, enfocando los pies.', legcurl: 'Teléfono de lado, a la altura del banco.', lunge: 'Teléfono de lado; se cuenta con la rodilla que más se dobla.' };
-  return map[e.pattern] || (front ? 'Pon el teléfono de frente, a 2–3 m, que se vea el cuerpo entero.' : 'Pon el teléfono de lado, a 2–3 m, que se vea el cuerpo entero.');
+  return map[e.pattern] || ('Teléfono ' + (front ? 'de frente' : 'de lado') + '. No hace falta el cuerpo entero: acércalo o usa el zoom hasta que se vean bien ' + C.JOINT_HELP[e.metric] + '.');
 }
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { if (!$('#modal').hidden) closeModal(); else if (!$('#cam').hidden) closeCam(); else if (!$('#exsheet').hidden) closeEx(); } });
 
@@ -529,17 +548,20 @@ function refreshAll() { if (curEx && !$('#exsheet').hidden) renderEx(); renderTo
 
 // ---------- cámara y detección ----------
 const MP_VER = '0.10.14';
-const MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+const modelUrl = (m) => 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_' + m + '/float16/1/pose_landmarker_' + m + '.task';
+let landmarkerModel = null;
 let landmarker = null, stream = null, camRaf = null, wakeLock = null, audioCtx = null;
 const cam = { ex: null, counter: null, phase: 'wait', adj: 0, manualT: null, restStart: null, pendingRest: null, lastVisible: 0, lastSaved: null, lastVideoT: -1 };
 
 async function loadLandmarker() {
-  if (landmarker) return landmarker;
+  if (landmarker && landmarkerModel === S.settings.model) return landmarker;
+  if (landmarker) { try { landmarker.close(); } catch (e) {} landmarker = null; }
   const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/vision_bundle.mjs');
   const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + MP_VER + '/wasm');
-  const opts = (delegate) => ({ baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
+  const opts = (delegate) => ({ baseOptions: { modelAssetPath: modelUrl(S.settings.model), delegate }, runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
   try { landmarker = await vision.PoseLandmarker.createFromOptions(files, opts('GPU')); }
   catch (e) { landmarker = await vision.PoseLandmarker.createFromOptions(files, opts('CPU')); }
+  landmarkerModel = S.settings.model;
   return landmarker;
 }
 async function startStream() {
@@ -547,12 +569,30 @@ async function startStream() {
   stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: S.settings.facing, width: { ideal: 960 }, height: { ideal: 720 } } });
   const v = $('#video'); v.srcObject = stream; await v.play();
   $('#cam').classList.toggle('mirror', S.settings.facing === 'user');
+  setupZoom();
 }
+function setupZoom() {
+  const wrap = $('#zoomwrap'); wrap.hidden = true;
+  const track = stream && stream.getVideoTracks()[0]; if (!track || !track.getCapabilities) return;
+  const caps = track.getCapabilities(); if (!caps.zoom || caps.zoom.max <= caps.zoom.min) return;
+  const z = $('#cam-zoom'); z.min = caps.zoom.min; z.max = Math.min(caps.zoom.max, 4); z.step = caps.zoom.step || 0.1;
+  const want = S.settings.zoom != null ? Math.min(Math.max(S.settings.zoom, caps.zoom.min), +z.max) : (track.getSettings().zoom || caps.zoom.min);
+  z.value = want; applyZoom(want); wrap.hidden = false;
+}
+function applyZoom(v) {
+  const track = stream && stream.getVideoTracks()[0]; if (!track) return;
+  track.applyConstraints({ advanced: [{ zoom: +v }] }).catch(() => {});
+  $('#zoomval').textContent = (Math.round(v * 10) / 10).toString().replace('.', ',') + '×';
+}
+$('#cam-zoom').addEventListener('input', (e) => { applyZoom(e.target.value); S.settings.zoom = +e.target.value; save(); });
 function stopStream() { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } }
 
 async function openCam(ex) {
   if (!window.isSecureContext || !navigator.mediaDevices) { toast('La cámara necesita que la app se abra desde https'); return; }
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
+  const jf = C.jointsFor(ex.metric); cam.needed = new Set([].concat(...Object.values(jf)));
+  $('#cam-voice').setAttribute('aria-pressed', String(S.settings.voice));
+  $('#cam-qual').className = 'qual'; $('#cam-qual').textContent = 'Buscando…';
   Object.assign(cam, { ex, counter: new C.RepCounter(ex), phase: 'wait', adj: 0, manualT: null, restStart: null, pendingRest: null, lastVisible: performance.now(), lastSaved: null, lastVideoT: -1 });
   $('#cam').hidden = false; $('#rest').hidden = true; document.body.classList.add('cam-open');
   $('#cam-name').textContent = ex.name;
@@ -569,6 +609,7 @@ async function openCam(ex) {
     return;
   }
   setStatus(camTip(ex) + ' Empieza cuando quieras.');
+  say(ex.name + '. ' + numWord(C.plannedSets(ex, S.overrides, weekNow())) + ' series de ' + ex.repsText.replace('–', ' a ') + '. Empieza cuando quieras.', true);
   loop();
 }
 function closeCam() {
@@ -591,7 +632,7 @@ function updateHud() {
 }
 
 const BONES = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28], [27, 31], [28, 32], [27, 29], [28, 30]];
-function drawPose(lm, W, H) {
+function drawPose(lm, W, H, needed) {
   const cv = $('#overlay'); const r = cv.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1;
   if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
   const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
@@ -602,7 +643,11 @@ function drawPose(lm, W, H) {
   ctx.lineWidth = 4 * dpr; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,138,31,.9)';
   BONES.forEach(([a, b]) => { if ((lm[a].visibility ?? 1) < 0.5 || (lm[b].visibility ?? 1) < 0.5) return; const A = P(lm[a]), B = P(lm[b]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); });
   ctx.fillStyle = '#fff';
-  for (let i = 11; i < 33; i++) { if ((lm[i].visibility ?? 1) < 0.5) continue; const A = P(lm[i]); ctx.beginPath(); ctx.arc(A[0], A[1], 4 * dpr, 0, Math.PI * 2); ctx.fill(); }
+  for (let i = 11; i < 33; i++) {
+    if ((lm[i].visibility ?? 1) < 0.5) continue; const A = P(lm[i]); const key = needed && needed.has(i);
+    ctx.fillStyle = key ? '#ff8a1f' : '#fff'; ctx.beginPath(); ctx.arc(A[0], A[1], (key ? 8 : 4) * dpr, 0, Math.PI * 2); ctx.fill();
+    if (key) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * dpr; ctx.stroke(); }
+  }
 }
 
 function loop() {
@@ -616,7 +661,10 @@ function loop() {
     raw = res.landmarks && res.landmarks[0];
     const W = v.videoWidth, H = v.videoHeight;
     if (raw) lmPx = raw.map((p) => ({ x: p.x * W, y: p.y * H, visibility: p.visibility }));
-    drawPose(raw, W, H);
+    drawPose(raw, W, H, cam.needed);
+    const q = C.detectionQuality(cam.ex.metric, raw);
+    if (now - (cam.qT || 0) > 400) { cam.qT = now; const el = $('#cam-qual'); const cls = q >= 0.8 ? 'good' : q >= 0.5 ? 'mid' : 'bad';
+      if (el.className !== 'qual ' + cls) { el.className = 'qual ' + cls; el.textContent = cls === 'good' ? 'Te veo bien' : cls === 'mid' ? 'Te veo regular' : 'No veo ' + C.JOINT_HELP[cam.ex.metric]; } }
     const out = cam.counter.update(now, lmPx);
     if (out.visible) cam.lastVisible = now;
     if (out.rep) onRep(now);
@@ -637,8 +685,9 @@ function loop() {
 }
 function onRep(now) {
   if (cam.phase !== 'set') beginSet(now);
-  $('#cam-reps').textContent = curReps();
+  const n = curReps(); $('#cam-reps').textContent = n;
   if (navigator.vibrate) navigator.vibrate(20);
+  say(n === cam.ex.repMax ? numWord(n) + ', tope del rango' : numWord(n), true);
 }
 function beginSet(now) {
   if (cam.restStart != null) {
@@ -663,13 +712,17 @@ function endSet(auto) {
   $('#cam-rir').style.visibility = 'visible';
   rirChips($('#cam-rir'), null, (v) => { if (cam.lastSaved) { cam.lastSaved.rir = v; save(); } });
   cam.counter.reset(); cam.adj = 0; cam.manualT = null; cam.pendingRest = null;
-  cam.restStart = last; cam.restBeeped = false; cam.phase = 'rest'; $('#rest').hidden = false; setStatus(null);
+  cam.restStart = last; cam.restBeeped = false; cam.warned = false; cam.lastCount = null; cam.phase = 'rest'; $('#rest').hidden = false; setStatus(null);
   updateHud(); tickRest(now);
   const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
   if (done >= pl) {
     const list = C.PLAN.filter((x) => x.day === cam.ex.day); const nx = list[list.indexOf(cam.ex) + 1];
     toast('Ejercicio completo' + (nx ? '. Sigue: ' + nx.name : '. ¡Sesión terminada!'));
-  } else toast('Serie ' + l.set + ' guardada: ' + reps + ' reps');
+    say(numWord(reps) + ' repeticiones. Ejercicio completo.' + (nx ? ' Sigue ' + nx.name + '.' : ' Sesión terminada, buen trabajo.'), true);
+  } else {
+    toast('Serie ' + l.set + ' guardada: ' + reps + ' reps');
+    say('Serie ' + numWord(l.set) + ', ' + numWord(reps) + ' repeticiones. Descansa ' + restWords(cam.ex.rest) + '.', true);
+  }
 }
 function tickRest(now) {
   const target = cam.ex.rest, el = (now - cam.restStart) / 1000, left = target - el;
@@ -678,16 +731,49 @@ function tickRest(now) {
   $('#rest-time').textContent = (left < 0 ? '+' : '') + fmtClock(Math.abs(left));
   $('#rest-sub').textContent = left < 0 ? 'A la siguiente serie' : 'Descanso · objetivo ' + fmtRest(target);
   $('#rest-arc').setAttribute('stroke-dashoffset', String(628.3 * Math.min(1, Math.max(0, el / target))));
-  if (left <= 0 && !cam.restBeeped) { cam.restBeeped = true; restAlarm(); }
+  const pw = S.settings.prewarn;
+  if (pw > 3 && !cam.warned && left <= pw && left > 3) { cam.warned = true; say('Quedan ' + numWord(Math.round(pw)) + ' segundos. Prepárate.', true); beep(660, 0.12); if (navigator.vibrate) navigator.vibrate(80); }
+  const sec = Math.ceil(left);
+  if (left > 0 && sec <= 3 && cam.lastCount !== sec) { cam.lastCount = sec; say(numWord(sec), true); beep(660, 0.1); }
+  if (left <= 0 && !cam.restBeeped) {
+    cam.restBeeped = true; restAlarm();
+    const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
+    say(done < pl ? '¡Vamos! Serie ' + numWord(done + 1) + '.' : '¡Vamos!', true);
+  }
 }
+function restWords(s) { const m = Math.floor(s / 60), r = s % 60; if (!m) return numWord(r) + ' segundos'; return (m === 1 ? 'un minuto' : numWord(m) + ' minutos') + (r === 30 ? ' y medio' : r ? ' y ' + numWord(r) + ' segundos' : ''); }
 function fmtClock(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+// ---------- voz ----------
+let esVoice = null;
+function pickVoice() {
+  if (!('speechSynthesis' in window)) return;
+  const vs = speechSynthesis.getVoices(); const pref = ['es-CL', 'es-419', 'es-US', 'es-MX', 'es-AR', 'es-ES'];
+  esVoice = pref.map((l) => vs.find((v) => v.lang.replace('_', '-') === l)).find(Boolean) || vs.find((v) => /^es/i.test(v.lang)) || null;
+}
+if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function say(text, interrupt) {
+  if (!S.settings.voice || !('speechSynthesis' in window)) return;
+  try {
+    if (interrupt) speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = esVoice ? esVoice.lang : 'es-ES'; if (esVoice) u.voice = esVoice; u.rate = 1.15;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+const NUM = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
+const numWord = (n) => NUM[n] || String(n);
+function beep(freq, dur) {
+  if (!S.settings.sound || !audioCtx) return;
+  try { const t = audioCtx.currentTime, o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = freq; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t + dur + 0.02); } catch (e) {}
+}
+$('#cam-voice').onclick = () => { S.settings.voice = !S.settings.voice; save(); $('#cam-voice').setAttribute('aria-pressed', String(S.settings.voice)); if (S.settings.voice) say('Voz activada', true); else speechSynthesis.cancel(); };
+
 function restAlarm() {
   if (!S.settings.sound) return;
   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   try { const t = audioCtx.currentTime; [0, 0.25].forEach((d) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.4, t + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.2); o.connect(g).connect(audioCtx.destination); o.start(t + d); o.stop(t + d + 0.22); }); } catch (e) {}
 }
-$('#cam-plus').onclick = () => { const now = performance.now(); if (cam.phase !== 'set') beginSet(now); cam.adj++; cam.manualT = now; $('#cam-reps').textContent = curReps(); };
-$('#cam-minus').onclick = () => { if (curReps() > 0) { cam.adj--; cam.manualT = performance.now(); } $('#cam-reps').textContent = curReps(); };
+$('#cam-plus').onclick = () => { const now = performance.now(); if (cam.phase !== 'set') beginSet(now); cam.adj++; cam.manualT = now; $('#cam-reps').textContent = curReps(); say(numWord(curReps()), true); };
+$('#cam-minus').onclick = () => { if (curReps() > 0) { cam.adj--; cam.manualT = performance.now(); } $('#cam-reps').textContent = curReps(); say('corregido, ' + numWord(curReps()), true); };
 $('#cam-end').onclick = () => { if (cam.phase === 'set') endSet(false); else toast('No hay una serie en curso'); };
 $('#cam-lastreps').addEventListener('change', () => { if (cam.lastSaved) { const v = +$('#cam-lastreps').value; if (v >= 0) { cam.lastSaved.reps = v; save(); toast('Reps corregidas'); } } });
 
@@ -736,12 +822,16 @@ $('#btn-resetplan').onclick = () => { S.overrides = {}; save(); refreshAll(); to
 function loadSettings() {
   $('#set-start').value = S.startDate; $('#set-autoend').value = String(S.settings.autoEnd);
   $('#set-minreps').value = String(S.settings.minReps); $('#set-facing').value = S.settings.facing; $('#set-sound').value = S.settings.sound ? '1' : '0';
+  $('#set-voice').value = S.settings.voice ? '1' : '0'; $('#set-prewarn').value = String(S.settings.prewarn); $('#set-model').value = S.settings.model;
 }
 $('#set-start').onchange = (e) => { if (e.target.value) { S.startDate = C.ymd(C.mondayOf(C.parseYmd(e.target.value))); e.target.value = S.startDate; save(); renderToday(); } };
 $('#set-autoend').onchange = (e) => { S.settings.autoEnd = +e.target.value; save(); };
 $('#set-minreps').onchange = (e) => { S.settings.minReps = +e.target.value; save(); };
 $('#set-facing').onchange = (e) => { S.settings.facing = e.target.value; save(); };
 $('#set-sound').onchange = (e) => { S.settings.sound = e.target.value === '1'; save(); };
+$('#set-voice').onchange = (e) => { S.settings.voice = e.target.value === '1'; save(); if (S.settings.voice) say('Voz activada', true); };
+$('#set-prewarn').onchange = (e) => { S.settings.prewarn = +e.target.value; save(); };
+$('#set-model').onchange = (e) => { S.settings.model = e.target.value; save(); toast('Se usará la próxima vez que abras la cámara'); };
 
 // ---------- navegación ----------
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
