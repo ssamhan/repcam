@@ -322,7 +322,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v20</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v21</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -541,6 +541,25 @@ input[type="date"], select { font-size: 16px; }
   </div>
 </div>
 
+<!-- entrar con huella -->
+<div class="login" id="quick" hidden>
+  <div class="loginbox" style="text-align:center;align-items:center">
+    <div class="brand"><i></i>RepCam</div>
+    <h2>Hola, <span id="qu-name"></span></h2>
+    <div style="font-size:64px;line-height:1">🔒</div>
+    <button class="btn primary" id="qu-bio" style="width:100%">Entrar con huella</button>
+    <button class="btn ghost" id="qu-pass" style="width:100%">Usar contraseña u otra cuenta</button>
+    <p class="note" id="qu-msg"></p>
+  </div>
+</div>
+<div class="modal" id="bioofer" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="bo-title">
+    <h3 id="bo-title">¿Entrar con tu huella?</h3>
+    <p class="note"><span id="bo-name"></span>, en este teléfono puedes entrar con tu huella en vez de escribir la contraseña. La huella la verifica Android; la app no la ve ni la guarda.</p>
+    <div class="row"><button class="btn ghost" id="bo-no">Ahora no</button><button class="btn primary" id="bo-yes">Activar huella</button></div>
+  </div>
+</div>
+
 <!-- personas -->
 <div class="login" id="login" hidden>
   <div class="loginbox">
@@ -659,9 +678,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js?v=20"></script>
-<script src="core.js?v=20"></script>
-<script src="library.js?v=20"></script>
+<script src="config.js?v=21"></script>
+<script src="core.js?v=21"></script>
+<script src="library.js?v=21"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -1826,7 +1845,7 @@ $('#pf-lock').addEventListener('change', async () => {
     if (!(await bioAvailable())) { toast('Este teléfono o navegador no permite huella aquí. Usa PIN.'); $('#pf-lock').value = u.lock; return; }
     try { u.cred = await bioRegister(u); u.lock = 'bio'; saveUsers(); toast('Huella activada'); }
     catch (e) { toast('No se activó la huella'); $('#pf-lock').value = u.lock; return; }
-    if (!u.pin) { const p = prompt('PIN de respaldo (4 a 8 números), por si falla la huella. Déjalo vacío para omitir.'); if (p && /^\d{4,8}$/.test(p)) { u.pin = await pinHash(u.id, p); saveUsers(); } }
+    if (!u.pin && !CLOUD_ON) { const p = prompt('PIN de respaldo (4 a 8 números), por si falla la huella. Déjalo vacío para omitir.'); if (p && /^\d{4,8}$/.test(p)) { u.pin = await pinHash(u.id, p); saveUsers(); } }
   } else if (v === 'pin') {
     const p = prompt('Elige un PIN de 4 a 8 números'); if (!p || !/^\d{4,8}$/.test(p)) { toast('PIN no válido'); $('#pf-lock').value = u.lock; return; }
     u.pin = await pinHash(u.id, p); u.lock = 'pin'; delete u.cred; saveUsers(); toast('PIN activado');
@@ -1838,7 +1857,7 @@ $('#pf-lock').addEventListener('change', async () => {
 // las series, pesos, descansos y grabaciones quedan solo en el teléfono. El administrador ve a todos desde su cuenta.
 const CFG = window.REPCAM_CONFIG || {};
 const CLOUD_ON = !!(CFG.firebase || CFG.mock);
-let cloudUser = null, cloudDoc = null, pendingName = '', cloudT = null, clMode = 'in', cloudNew = false;
+let cloudUser = null, cloudDoc = null, pendingName = '', cloudT = null, clMode = 'in', cloudNew = false, justSignedIn = false;
 const clean = (o) => JSON.parse(JSON.stringify(o));   // el servidor no acepta valores "undefined"
 function showCloudLogin(msg, busy) {
   $('#cl-owner').textContent = CFG.ownerName || 'el administrador';
@@ -1851,7 +1870,7 @@ function setClMode(m) {
 }
 async function startCloud() {
   showCloudLogin('Conectando con el servidor…', true);
-  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=20'); Cloud.init(CFG.firebase); }
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=21'); Cloud.init(CFG.firebase); }
   catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
   Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
 }
@@ -1861,8 +1880,9 @@ $('#cl-go').onclick = async () => {
   if (!email || !pass) { $('#cl-msg').textContent = 'Escribe tu correo y tu contraseña.'; return; }
   if (clMode === 'up' && !name) { $('#cl-msg').textContent = 'Escribe tu nombre.'; return; }
   $('#cl-msg').textContent = clMode === 'up' ? 'Creando tu cuenta…' : 'Entrando…';
+  justSignedIn = true;
   try { if (clMode === 'up') { pendingName = name; await Cloud.signUp(email, pass, name); } else await Cloud.signIn(email, pass); }
-  catch (e) { $('#cl-msg').textContent = Cloud.msg(e); }
+  catch (e) { justSignedIn = false; $('#cl-msg').textContent = Cloud.msg(e); }
 };
 $('#cl-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#cl-go').click(); });
 // el dueño debe verificar su correo (enlace que envía el servidor) antes de quedar como administrador
@@ -1901,11 +1921,38 @@ async function cloudEnter(u) {
   saveUsers(); cloudDoc = doc; pendingName = '';
   $('#cloudlogin').hidden = true;
   let un = null; try { un = sessionStorage.getItem('repcam.unlocked'); } catch (e) {}
-  if (lu.lock !== 'none' && un !== lu.id) showLogin(false, lu.id); else enterUser(lu.id);
+  // la huella reemplaza a la contraseña al volver a abrir la app; si recién escribiste la contraseña, no se pide
+  if (lu.lock === 'bio' && lu.cred && !justSignedIn && un !== lu.id) { quickUnlock(lu); return; }
+  justSignedIn = false; enterUser(lu.id);
+  // primera vez en este teléfono: ofrecer entrar con huella las próximas veces
+  if (lu.lock === 'none' && !lu.bioAsked && await bioAvailable()) await offerBio(lu);
   if (cloudNew) {   // cuenta nueva: marcar equipo y elegir plan
     cloudNew = false; document.querySelector('.tab[data-view="plan"]').click(); openEquip(true);
     toast('Hola ' + curUser().name.split(' ')[0] + ': marca tu equipo y elige tu plan');
   }
+}
+// pantalla de entrada rápida con huella (sesión guardada en este teléfono)
+async function quickUnlock(lu) {
+  $('#qu-name').textContent = lu.name; $('#qu-msg').textContent = ''; $('#quick').hidden = false; $('#cloudlogin').hidden = true;
+  const go = async () => {
+    $('#qu-msg').textContent = 'Pon tu dedo en el lector…';
+    try { if (await bioCheck(lu)) { $('#quick').hidden = true; enterUser(lu.id); return; } $('#qu-msg').textContent = 'No se pudo verificar. Intenta de nuevo.'; }
+    catch (e) { $('#qu-msg').textContent = 'Huella cancelada. Toca "Entrar con huella" o usa tu contraseña.'; }
+  };
+  $('#qu-bio').onclick = go; $('#qu-pass').onclick = () => { $('#quick').hidden = true; cloudSignOut(); };
+  go();
+}
+function offerBio(lu) {
+  return new Promise((done) => {
+    $('#bo-name').textContent = lu.name.split(' ')[0]; $('#bioofer').hidden = false;
+    const end = () => { lu.bioAsked = true; saveUsers(); $('#bioofer').hidden = true; done(); };
+    $('#bo-yes').onclick = async () => {
+      try { lu.cred = await bioRegister(lu); lu.lock = 'bio'; delete lu.pin; toast('Listo: la próxima vez entras con tu huella'); if ($('#pf-lock')) $('#pf-lock').value = 'bio'; cloudPush(); }
+      catch (e) { toast('No se activó la huella. Puedes hacerlo en Ajustes → Mi perfil'); }
+      end();
+    };
+    $('#bo-no').onclick = end;
+  });
 }
 // lo del servidor gana si es más nuevo (p. ej., el administrador te asignó un plan)
 function mergeCloud() {
@@ -2042,6 +2089,9 @@ function planHtml(plan) {
     d.items.map((it) => { const e = RepLib.resolve(it, d.key); return '<div class="note">' + esc(e.name) + ' — ' + e.sets + ' × ' + e.repsText + '</div>'; }).join('')).join('');
 }
 if (CLOUD_ON) {
+  // con servidor: la huella reemplaza la contraseña al abrir la app (el respaldo es la contraseña)
+  $('#pf-lock').closest('.setting').querySelector('span').innerHTML = 'Entrar con huella<small>Al abrir la app en este teléfono, en vez de la contraseña</small>';
+  $('#pf-lock').innerHTML = '<option value="none">No, con contraseña</option><option value="bio">Sí, con huella</option>';
   $('#btn-admin').onclick = openCloudAdmin;
   $('#ad-add').hidden = true; $('#au-reset').hidden = true; $('#ad-cloud').hidden = false;
   $('#au-enter').textContent = 'Ver su plan'; $('#au-export').textContent = 'Descargar su perfil'; $('#au-del').textContent = 'Eliminar perfil';
@@ -2569,7 +2619,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 20;
+const APP_VER = 21;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
