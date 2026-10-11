@@ -157,7 +157,8 @@ input[type="date"], select { font-size: 16px; }
 /* cámara */
 .cam { position: fixed; inset: 0; background: #000; z-index: 20; display: flex; flex-direction: column; color: #fff; }
 .cam .stage { position: relative; flex: 1; overflow: hidden; }
-.cam video, .cam canvas.ov { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cam video, .cam canvas.ov { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.cam .stage { background: #000; }
 .cam.mirror video, .cam.mirror canvas.ov { transform: scaleX(-1); }
 .hud-top { position: absolute; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px 24px; background: linear-gradient(rgb(0 0 0 / .7), transparent); display: flex; align-items: flex-start; gap: 10px; }
 .hud-top .t { flex: 1; min-width: 0; }
@@ -198,6 +199,12 @@ input[type="date"], select { font-size: 16px; }
 .invrow { display: grid; grid-template-columns: 56px 1fr 1fr auto; gap: 8px; align-items: center; }
 .invrow img, .invrow .disc { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
 .invrow input { font-size: 16px; padding: 8px; }
+.camgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; max-height: 60vh; overflow-y: auto; }
+.camopt { border: 2px solid var(--line); background: var(--bg); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; text-align: left; }
+.camopt[aria-pressed="true"] { border-color: var(--accent); }
+.camopt img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; border-radius: 8px; }
+.camopt span { font-size: 13px; font-weight: 600; }
+.camopt small { font-size: 12px; color: var(--muted); }
 .diag { position: absolute; left: 14px; bottom: 140px; margin: 0; font: 12px/1.35 ui-monospace, Menlo, monospace; background: rgb(0 0 0 / .6); color: #fff; padding: 8px 10px; border-radius: 10px; z-index: 2; }
 .cam.sensor video, .cam.sensor canvas.ov, .cam.sensor #cam-flip, .cam.sensor #zoomwrap { display: none !important; }
 .cam.sensor .stage { background: radial-gradient(circle at 50% 40%, #1e242b, #0b0d10); }
@@ -346,7 +353,7 @@ input[type="date"], select { font-size: 16px; }
       <span class="qual" id="cam-qual">Buscando…</span>
       <button class="iconbtn" id="cam-voice" aria-label="Voz" aria-pressed="true" style="width:36px;height:36px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
       <button class="skipex" id="cam-skipex" hidden>Saltar ejercicio ›</button>
-      <button class="skipex" id="cam-clean" aria-pressed="false">Vista grande</button>
+      <button class="skipex" id="cam-clean" aria-pressed="false">Modo TV</button>
       <label class="zoom" id="zoomwrap" hidden>Zoom <input type="range" id="cam-zoom" aria-label="Zoom de la cámara"><b class="num" id="zoomval">1×</b></label>
     </div>
     <div class="counter"><div class="reps num" id="cam-reps">0</div><div class="lbl">reps<b class="num" id="cam-set">Serie 1/4</b></div></div>
@@ -407,6 +414,15 @@ input[type="date"], select { font-size: 16px; }
     <div class="ptotal"><span class="num" id="p-side">Por lado: —</span><b class="num" id="p-total">0 kg</b></div>
     <div class="note" id="p-suggest"></div>
     <div class="row"><button class="btn ghost" id="p-clear">Vaciar</button><button class="btn ghost" id="p-cancel">Cancelar</button><button class="btn primary" id="p-use">Usar este peso</button></div>
+  </div>
+</div>
+<!-- elegir cámara -->
+<div class="modal" id="campick" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="cp-title">
+    <h3 id="cp-title">Elegir cámara</h3>
+    <p class="note" id="cp-note">Revisando las cámaras del teléfono…</p>
+    <div class="camgrid" id="cp-grid"></div>
+    <div class="row"><button class="btn ghost" id="cp-cancel">Cancelar</button></div>
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
@@ -828,6 +844,7 @@ function sensorLoop() {
 }
 function closeCam() {
   cancelAnimationFrame(camRaf); camRaf = null; stopStream(); stopMotion(); cam.lastOut = null;
+  if ($('#cam').classList.contains('clean') || document.fullscreenElement) tvMode(false);
   try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
   if (cam.phase === 'set' && curReps() > 0) endSet(false);
   REC.stop();
@@ -840,15 +857,35 @@ function camLabel(d, i) {
   const side = /front|frontal|user/i.test(l) ? 'frontal' : /back|rear|trasera|environment/i.test(l) ? 'trasera' : /usb|uvc|external|webcam/i.test(l) ? 'externa USB' : '';
   return 'Cámara ' + (i + 1) + (side ? ' · ' + side : '') + (n ? ' (' + n[1] + ')' : '') + (!side && l ? ' · ' + l : '');
 }
-// recorre todas las cámaras que entrega el teléfono (frontal, trasera, gran angular, USB)
+// selector con vista previa de cada cámara (frontal, trasera, gran angular o USB si el teléfono las entrega)
+async function snapCamera(deviceId) {
+  let st = null;
+  try {
+    st = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 960 } } });
+    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.srcObject = st; await v.play();
+    await new Promise((ok) => setTimeout(ok, 450));
+    const c = document.createElement('canvas'); c.width = 320; c.height = Math.round(320 * v.videoHeight / v.videoWidth) || 240;
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    const set = st.getVideoTracks()[0].getSettings(), caps = st.getVideoTracks()[0].getCapabilities ? st.getVideoTracks()[0].getCapabilities() : {};
+    return { img: c.toDataURL('image/jpeg', 0.6), w: set.width, h: set.height, zoomMin: caps.zoom ? caps.zoom.min : null };
+  } catch (e) { return null; } finally { if (st) st.getTracks().forEach((t) => t.stop()); }
+}
 $('#cam-flip').onclick = async () => {
-  const list = await videoInputs(); if (list.length < 2) { toast('Solo hay una cámara disponible'); return; }
-  const cur = stream && stream.getVideoTracks()[0].getSettings().deviceId;
-  const i = Math.max(0, list.findIndex((d) => d.deviceId === cur)); const nx = list[(i + 1) % list.length];
-  S.settings.camId = nx.deviceId; save();
-  try { await startStream(); toast(camLabel(nx, (i + 1) % list.length) + ' · ' + (stream.getVideoTracks()[0].getSettings().width || '') + '×' + (stream.getVideoTracks()[0].getSettings().height || '')); if (cam.counter && cam.counter.template) { cam.counter.template = null; } }
-  catch (e) { toast('No se pudo abrir esa cámara'); }
+  $('#campick').hidden = false; $('#cp-grid').innerHTML = ''; $('#cp-note').textContent = 'Revisando las cámaras del teléfono…';
+  const wasRunning = !!stream; stopStream();
+  const list = await videoInputs(); const cur = S.settings.camId;
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i]; const snap = await snapCamera(d.deviceId); if ($('#campick').hidden) break;
+    if (!snap) continue;
+    const b = document.createElement('button'); b.className = 'camopt'; b.type = 'button'; b.setAttribute('aria-pressed', String(d.deviceId === cur));
+    b.innerHTML = '<img src="' + snap.img + '" alt=""><span>' + esc(camLabel(d, i)) + '</span><small>' + (snap.w || '?') + '×' + (snap.h || '?') + (snap.zoomMin != null && snap.zoomMin < 1 ? ' · zoom desde ' + fmtNum(snap.zoomMin) + '×' : '') + '</small>';
+    b.onclick = async () => { S.settings.camId = d.deviceId; save(); $('#campick').hidden = true; try { await startStream(); if (cam.counter && cam.counter.template) cam.counter.template = null; toast('Cámara cambiada. Quédate quieto en posición para recalibrar.'); } catch (e) { toast('No se pudo abrir esa cámara'); } };
+    $('#cp-grid').appendChild(b);
+  }
+  $('#cp-note').textContent = list.length > 2 ? 'Elige la que muestre más espacio (el gran angular se ve más "lejos").' : 'Chrome solo entrega ' + list.length + ' cámara(s) en este teléfono. Si el gran angular 0,6× no aparece aquí, Chrome no lo permite.';
+  if (wasRunning && !stream && $('#campick').hidden === false) { /* se reabre al elegir o cancelar */ }
 };
+$('#cp-cancel').onclick = async () => { $('#campick').hidden = true; if (!stream && !$('#cam').hidden && S.settings.mode === 'camera') { try { await startStream(); } catch (e) {} } };
 
 const TOL = { strict: 0.7, normal: 1.0, loose: 1.5 };
 function newCounter(ex) {
@@ -871,8 +908,8 @@ function drawPose(lm, W, H, needed) {
   if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
   const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
   if (!lm) return;
-  // misma geometría que object-fit: cover
-  const s = Math.max(cv.width / W, cv.height / H), ox = (cv.width - W * s) / 2, oy = (cv.height - H * s) / 2;
+  // misma geometría que object-fit: contain (se ve el cuadro completo de la cámara)
+  const s = Math.min(cv.width / W, cv.height / H), ox = (cv.width - W * s) / 2, oy = (cv.height - H * s) / 2;
   const P = (p) => [ox + p.x * W * s, oy + p.y * H * s];
   ctx.lineWidth = 4 * dpr; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,138,31,.9)';
   BONES.forEach(([a, b]) => { if ((lm[a].visibility ?? 1) < 0.5 || (lm[b].visibility ?? 1) < 0.5) return; const A = P(lm[a]), B = P(lm[b]); ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke(); });
@@ -1323,8 +1360,22 @@ $('#p-bar').onchange = renderPlates;
 $('#p-clear').onclick = () => { pLoad = {}; renderPlates(); };
 $('#p-cancel').onclick = () => { $('#plates').hidden = true; };
 $('#p-use').onclick = () => { const t = plateTotal(); const inp = $('#' + pTarget); inp.value = t.total; inp.dispatchEvent(new Event('change')); $('#plates').hidden = true; };
-$('#cam-clean').onclick = () => { const on = !$('#cam').classList.contains('clean'); $('#cam').classList.toggle('clean', on); $('#cam-clean').setAttribute('aria-pressed', String(on)); };
-document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
+// Modo TV: pantalla completa fija en horizontal (para Smart View) y vista limpia
+async function tvMode(on) {
+  $('#cam').classList.toggle('clean', on); $('#cam-clean').setAttribute('aria-pressed', String(on));
+  try {
+    if (on) {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+    } else {
+      if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+      if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
+    }
+  } catch (e) { if (on) toast('No se pudo girar solo: activa "Rotación automática" en el panel rápido'); }
+}
+$('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
+document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
 loadSettings(); renderToday();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

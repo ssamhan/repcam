@@ -26,7 +26,8 @@ Modo "Teléfono en el cuerpo" (recomendado si la cámara cuenta mal)
 
 Verte en grande (recomendado)
 - Duplica la pantalla del teléfono en el televisor: desliza el panel rápido → Smart View → elige el TV.
-- Gira el teléfono en horizontal y toca "Vista grande": ves tu imagen con el esqueleto y el contador gigante.
+- En la cámara toca "Modo TV": la app pasa a pantalla completa en horizontal (la imagen queda derecha en el TV). Toca la imagen para salir.
+- Botón de cámara (arriba a la derecha): muestra una miniatura de cada cámara del teléfono. Si aparece el gran angular, elígelo.
 - Así puedes usar la cámara TRASERA (detecta mucho mejor que la frontal) y igual verte.
 
 Discos
