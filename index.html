@@ -167,7 +167,7 @@ input[type="date"], select { font-size: 16px; }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
 /* personas */
 .topright { display: flex; align-items: center; gap: 10px; }
-.adminbar { position: sticky; top: 0; z-index: 30; background: var(--warn); color: #1a1200; font-size: 14px; padding: 8px 16px; display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.adminbar { position: relative; z-index: 1; background: var(--warn); color: #1a1200; font-size: 14px; padding: 8px 16px; display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
 .adminbar button { border: 0; border-radius: 8px; padding: 4px 10px; font: 600 13px var(--body); background: #1a1200; color: #fff; cursor: pointer; }
 .ubtn.off { opacity: .5; }
 .ubtn .role { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .03em; }
@@ -322,7 +322,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v22</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v23</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -682,9 +682,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js?v=22"></script>
-<script src="core.js?v=22"></script>
-<script src="library.js?v=22"></script>
+<script src="config.js?v=23"></script>
+<script src="core.js?v=23"></script>
+<script src="library.js?v=23"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -1406,7 +1406,7 @@ function posture3D(wl, lmPx, W, H) {
   const f2 = C.features(clip);
   cam.pvec = C.postureVector(f, f2);
   const prof = S.postureProfile && Object.keys(S.postureProfile).length >= 2 ? S.postureProfile : null;
-  return (prof && C.classifyWithProfile(cam.pvec, prof)) || C.classifyPosture3D(f);
+  return C.sanePosture((prof && C.classifyWithProfile(cam.pvec, prof)) || C.classifyPosture3D(f), f);
 }
 // ---------- calibración de posturas (guiada por voz) ----------
 const CALIB_STEPS = [
@@ -1570,7 +1570,10 @@ function handleGate(out, now) {
     if (pp.textContent !== ptxt) { pp.textContent = ptxt; pp.hidden = !P; pp.className = 'qual ' + (C.postureCompatible(P, C.EXPECTED[cam.ex.id]) ? 'good' : 'bad'); }
   }
   $('#cam-arm').hidden = out.state === 'armed';
-  if (out.armed && !cam.nextEx) { onArmed(now, false); REC.ev('armed', cam.counter.armedBy); }
+  if (out.armed && !cam.nextEx) {
+    if (out.postureFallback) { cam.armVoiceT = now; say('No reconozco bien tu postura. Cuento igual: empieza.', true); }
+    onArmed(now, false); REC.ev('armed', cam.counter.armedBy);
+  }
   if (out.disarmed) REC.ev('disarmed', out.reason);
   if (out.disarmed) {
     cam.gateState = 'search'; cam.searchSince = now; cam.hintT = now;
@@ -1887,7 +1890,7 @@ function setClMode(m) {
 }
 async function startCloud() {
   showCloudLogin('Conectando con el servidor…', true);
-  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=22'); Cloud.init(CFG.firebase); }
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=23'); Cloud.init(CFG.firebase); }
   catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
   Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
 }
@@ -2639,7 +2642,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 22;
+const APP_VER = 23;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
