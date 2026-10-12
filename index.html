@@ -332,7 +332,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v27</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v28</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -441,7 +441,7 @@ input[type="date"], select { font-size: 16px; }
         <p class="note">La inclinación de la cámara la mide el sensor del teléfono; la altura y la distancia quedan guardadas con tus datos para ajustar los consejos y el análisis.</p>
         <div class="setting"><span>Validar postura<small>No cuenta si la postura no corresponde al ejercicio</small></span><select id="set-checkpost"><option value="1">Sí</option><option value="0">No</option></select></div>
         <div class="setting"><span>Exigencia de recorrido<small>Cuánto debe bajar o estirar cada rep para no recibir aviso</small></span><select id="set-romstrict"><option value="strict">Estricta</option><option value="normal">Normal</option><option value="soft">Suave</option></select></div>
-        <div class="setting"><span>Cómo empieza la serie<small>Por ritmo: cuenta cuando ve repeticiones seguidas y descarta movimientos sueltos. Con tu voz: cuenta solo después de tu palabra para empezar y cierra la serie cuando dices la de terminar.</small></span><select id="set-startmode"><option value="rhythm">Automático por ritmo</option><option value="voice">Con tu voz</option><option value="button">Con el botón</option><option value="auto">Por posición (antiguo)</option></select></div>
+        <div class="setting"><span>Cómo empieza la serie<small>Por ritmo: cuenta cuando ve repeticiones seguidas y descarta movimientos sueltos. Con un gesto: levanta una mano sobre la cabeza 1 segundo para empezar y otra vez para terminar (no corta la música). Con tu voz: usa tus palabras; en Android el micrófono pausa la música mientras escucha.</small></span><select id="set-startmode"><option value="rhythm">Automático por ritmo</option><option value="gesture">Con un gesto (mano arriba)</option><option value="voice">Con tu voz</option><option value="button">Con el botón</option><option value="auto">Por posición (antiguo)</option></select></div>
         <div class="setting"><span>Palabras para empezar<small>Separadas por coma</small></span><input type="text" id="set-startwords" style="font-size:16px" autocomplete="off"></div>
         <div class="setting"><span>Palabras para terminar<small>Cierra la serie al decirlas (opcional)</small></span><input type="text" id="set-stopwords" style="font-size:16px" autocomplete="off"></div>
         <p class="note" id="voice-note">El reconocimiento de voz de Chrome necesita internet. Mientras la app habla, no escucha (para no activarse con su propia voz).</p>
@@ -734,9 +734,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js?v=27"></script>
-<script src="core.js?v=27"></script>
-<script src="library.js?v=27"></script>
+<script src="config.js?v=28"></script>
+<script src="core.js?v=28"></script>
+<script src="library.js?v=28"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -1240,9 +1240,9 @@ function setupTip(ex) {
   return camTip(ex);
 }
 function introSay(ex) {
-  if (ex.free) return 'Entrenamiento libre. Haz el ejercicio que quieras: lo reconozco y cuento las repeticiones.' + (voiceMode() ? ' Di tu palabra para empezar cada serie.' : ' Empieza cuando quieras.');
+  if (ex.free) return 'Entrenamiento libre. Haz el ejercicio que quieras: lo reconozco y cuento las repeticiones.' + startHow(' cada serie');
   const n = C.plannedSets(ex, S.overrides, weekNow()), done = logsToday(ex.id).length;
-  return ex.name + '. ' + (done ? 'Llevas ' + numWord(done) + ' de ' + seriesWord(n) + '.' : seriesWord(n) + ' de ' + ex.repsText.replace('–', ' a ') + '.') + ' ' + voiceTip(ex) + (S.settings.startMode === 'voice' && SpeechRec ? ' Ponte en posición y di tu palabra para empezar.' : rhythmMode() ? ' Empieza cuando quieras.' : ' Ponte en posición de inicio.');
+  return ex.name + '. ' + (done ? 'Llevas ' + numWord(done) + ' de ' + seriesWord(n) + '.' : seriesWord(n) + ' de ' + ex.repsText.replace('–', ' a ') + '.') + ' ' + voiceTip(ex) + startHow('');
 }
 async function openCam(ex, guided, queue, opts) {
   opts = opts || {};
@@ -1419,7 +1419,7 @@ function newCounter(ex) {
   const SL = { strict: 0, normal: 1, soft: 2 }[S.settings.romStrict] ?? 1, RT = { strict: 0.15, normal: 0.25, soft: 0.35 }[S.settings.romStrict] ?? 0.25;
   const rc = new C.RepCounter(ex, { romSlack: SL, relTol: RT, typicalRange: S.rom[ex.id], romRef: S.romRef[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1, always: S.settings.countMode === 'always', multi: S.settings.engine !== 'classic', use3dRom: ex.rom3d !== false, bankMode: S.settings.engine === 'leader' ? 'leader' : 'consensus' });
   if (!S.settings.checkPosture) rc.expected = null;   // validación de postura desactivada
-  rc.manualOnly = S.settings.startMode === 'voice' || S.settings.startMode === 'button';
+  rc.manualOnly = ['voice', 'button', 'gesture'].includes(S.settings.startMode);
   if (S.settings.startMode === 'rhythm') { rc.always = true; rc.expected = null; rc.template = null; }   // siempre mirando; la serie la define el ritmo
   return rc;
 }
@@ -1569,6 +1569,7 @@ function loop() {
     if (cam.sig && lmPx) cam.sig.push(now, lmPx);
 
     handleGate(out, now);
+    gestureTick(now, lmPx);
     REC.frame(now, raw, q, out.state, wl, lastMotion);
     if (out.rep) onRep(now, out);
     const pr = cam.counter.progress(); $('#rom').style.height = pr == null || out.state !== 'armed' ? '0%' : Math.round(Math.max(0, Math.min(1, pr)) * 100) + '%';
@@ -1610,6 +1611,8 @@ $('#cam-rot').onclick = () => {
 const rhythmMode = () => S.settings.startMode === 'rhythm' && S.settings.mode !== 'sensor';
 const rhythmMin = (ex) => (ex.free ? 5 : Math.max(6, Math.round((ex.repMin || 6) * 0.6)));   // libre: 5 seguidas ya es una serie
 function tick(now) {
+  // con voz: el micrófono solo escucha cuando hace falta (en Android pausa la música mientras escucha)
+  if (voiceMode() && !$('#cam').hidden && recWanted) { const need = micNeeded(now); if (need && !srec) listenStart(); else if (!need && srec) { try { srec.abort(); } catch (e) {} srec = null; micBadge('🎙 en pausa (descanso)', false); } }
   // por ritmo: 1–2 movimientos sueltos fuera de una serie se olvidan a los 4 s
   if (rhythmMode() && cam.phase !== 'set' && cam.counter && cam.counter.count() > 0 && now - (cam.counter.lastRepT() || now) > 4000) { cam.counter = newCounter(cam.ex); cam.repTs = []; $('#cam-reps').textContent = 0; }
   // fin automático de serie
@@ -1634,7 +1637,7 @@ function gateMsg(out) {
     return cam.counter.paused ? 'Descansando · cuenta al final del descanso' : 'Quédate quieto en la posición de inicio';
   }
   if (rhythmMode()) return 'Ponte frente a la cámara: no te veo completo';
-  if (out.reason === 'voice') return S.settings.startMode === 'voice' && SpeechRec ? 'Di "' + startWords()[0] + '" para empezar' : 'Toca "Estoy en posición" para empezar';
+  if (out.reason === 'voice') return gestureMode() ? 'Levanta una mano sobre la cabeza para empezar' : S.settings.startMode === 'voice' && SpeechRec ? 'Di "' + startWords()[0] + '" o levanta una mano para empezar' : 'Toca "Estoy en posición" o levanta una mano para empezar';
   if (out.reason === 'camera') return 'Ajusta la cámara: no veo ' + C.JOINT_HELP[cam.ex.metric];
   if (out.reason === 'wrongPosture') {
     const P = cam.counter.postureNow, E = C.EXPECTED[cam.ex.id] || [];
@@ -1862,7 +1865,7 @@ function tickRest(now) {
     cam.restBeeped = true; restAlarm();
     const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
     const ready = cam.counter.state === 'armed';
-    say((done < pl ? cheerWord() + ' Serie ' + numWord(done + 1) + '.' : cheerWord()) + (ready ? '' : S.settings.startMode === 'voice' && SpeechRec ? ' Di tu palabra para empezar cuando estés en posición.' : ' Ponte en posición de inicio.'), true);
+    say((done < pl ? cheerWord() + ' Serie ' + numWord(done + 1) + '.' : cheerWord()) + (ready ? '' : startHow('')), true);
     cam.hintT = now;
   }
 }
@@ -2052,6 +2055,48 @@ $('#fa-add').onclick = () => {
 };
 $('#btn-free').onclick = openFree;
 
+// ---------- empezar y terminar con un gesto ----------
+// Una mano sobre la cabeza (la otra abajo), quieta 1 segundo. Funciona también como respaldo en los modos voz y botón.
+const gestureMode = () => S.settings.startMode === 'gesture' && S.settings.mode !== 'sensor';
+const gestureOn = () => ['gesture', 'voice', 'button'].includes(S.settings.startMode) && S.settings.mode !== 'sensor';
+function startHow(suffix) {
+  if (gestureMode()) return ' Para empezar' + suffix + ', levanta una mano sobre la cabeza un segundo; para terminar, repite el gesto.';
+  if (voiceMode()) return ' Di tu palabra para empezar' + suffix + ', o levanta una mano sobre la cabeza.';
+  if (rhythmMode()) return ' Empieza cuando quieras.';
+  return ' Ponte en posición de inicio.';
+}
+function handRaised(lm) {
+  if (!lm) return false;
+  const v = (i) => lm[i] && (lm[i].visibility ?? 1) >= 0.5;
+  if (!v(11) || !v(12) || !v(23) || !v(24)) return false;
+  const shY = (lm[11].y + lm[12].y) / 2, T = Math.abs((lm[23].y + lm[24].y) / 2 - shY); if (T < 10) return false;
+  const top = shY - 0.9 * T;   // claramente sobre la cabeza
+  const up = (w, e) => v(w) && v(e) && lm[w].y < top && lm[w].y < lm[e].y;
+  const down = (w) => !v(w) || lm[w].y > shY + 0.15 * T;
+  return (up(15, 13) && down(16)) || (up(16, 14) && down(15));
+}
+function gestureTick(now, lm) {
+  if (!gestureOn() || !cam.counter || cam.nextEx || cam.phase === 'done' || cam.calib) { cam.gSince = null; return; }
+  if (now < (cam.gCool || 0)) return;
+  if (!handRaised(lm)) { if (cam.gSince != null && cam.phase !== 'set') setStatus(null); cam.gSince = null; return; }
+  if (cam.gSince == null) cam.gSince = now;
+  const held = now - cam.gSince;
+  $('#cam-qual').className = 'qual mid'; $('#cam-qual').textContent = (cam.phase === 'set' ? 'Mano arriba: terminar… ' : 'Mano arriba: empezar… ') + Math.min(100, Math.round(held / 10)) + '%';
+  if (held < 1000) return;
+  cam.gSince = null; cam.gCool = now + 3000; beep(1320, 0.12);
+  if (cam.phase === 'set' && curReps() > 0) {
+    // las reps que contó al levantar la mano no valen
+    const extra = (cam.repTs || []).filter((t) => t > now - 2600).length;
+    if (extra) { cam.adj -= Math.min(extra, curReps()); cam.repTs = cam.repTs.slice(0, -extra); }
+    REC.ev('gestureStop', extra); endSet(false); return;
+  }
+  if (cam.counter.state !== 'armed') {
+    REC.ev('gestureArm'); say(cheerWord(), true);
+    // se arma un instante después: tiempo para bajar la mano y tomar la posición
+    setTimeout(() => { if (cam.counter && cam.counter.state !== 'armed' && cam.counter.manualArm(performance.now())) { $('#cam-arm').hidden = true; onArmed(performance.now(), true); } }, 1200);
+  }
+}
+
 // ---------- empezar con la voz ----------
 // Escucha una palabra (configurable) para empezar a contar y, opcionalmente, otra para terminar la serie.
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -2095,14 +2140,22 @@ function onHeard(e) {
     if (st && (fin || nWords(first) === 1)) { REC.ev('voiceStop', normWord(all)); micBadge('🎙 serie terminada', true); endSet(false); return; }
   }
 }
+// ¿hace falta escuchar ahora? en la serie (para terminar) o esperando para empezar; no en medio del descanso
+function micNeeded(now) {
+  if (!cam.counter || cam.phase === 'done') return false;
+  if (cam.phase === 'set') return true;
+  if (cam.phase === 'rest') return restOver(now) || (cam.restTarget - (now - cam.restStart) / 1000) < 15;
+  return true;
+}
 function listenStart() {
   if (!SpeechRec || S.settings.startMode !== 'voice' || $('#cam').hidden) return;
   recWanted = true; if (srec) return;
+  if (!micNeeded(performance.now())) return;
   try {
     const r = new SpeechRec(); srec = r; r.lang = 'es-CL'; r.continuous = true; r.interimResults = true; r.maxAlternatives = 3;
     r.onresult = onHeard;
     // el micrófono sigue siempre encendido (también mientras la app habla): el eco se filtra por el texto
-    r.onend = () => { if (srec === r) srec = null; if (recWanted && !$('#cam').hidden) { micBadge('🎙 reconectando…', false); setTimeout(listenStart, recFails > 3 ? 1500 : 150); } };
+    r.onend = () => { if (srec === r) srec = null; if (recWanted && !$('#cam').hidden && micNeeded(performance.now())) { micBadge('🎙 reconectando…', false); setTimeout(() => { if (!srec && micNeeded(performance.now())) listenStart(); }, recFails > 3 ? 1500 : 150); } };
     r.onerror = (e) => {
       REC.ev('micError', e.error);
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { recWanted = false; micBadge('🎙 sin permiso: toca aquí', false); toast('Permite el micrófono para empezar con la voz'); }
@@ -2295,7 +2348,7 @@ function setClMode(m) {
 }
 async function startCloud() {
   showCloudLogin('Conectando con el servidor…', true);
-  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=27'); Cloud.init(CFG.firebase); }
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=28'); Cloud.init(CFG.firebase); }
   catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
   Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
 }
@@ -3058,7 +3111,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 27;
+const APP_VER = 28;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
