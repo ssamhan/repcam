@@ -322,7 +322,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v21</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v22</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -343,6 +343,19 @@ input[type="date"], select { font-size: 16px; }
 
   <section id="view-plan" hidden>
     <div class="list" id="plan"></div>
+  </section>
+
+  <section id="view-users" hidden>
+    <div class="list">
+      <div class="card" id="admin">
+        <h3 id="ad-title">Usuarios</h3>
+        <p class="note" id="ad-sum"></p>
+        <label class="checkrow"><input type="checkbox" id="ad-signup"> Cualquiera puede crear su cuenta desde la pantalla de inicio</label>
+        <div id="ad-cloud" hidden><label class="f">Correos invitados (uno por línea; pueden crear cuenta aunque el registro esté cerrado)<textarea id="ad-invited" rows="3" style="font:400 15px var(--body);width:100%;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:8px"></textarea></label><button class="btn ghost small" id="ad-saveinv">Guardar invitaciones</button></div>
+        <div class="row"><button class="btn ghost small" id="ad-add">+ Crear cuenta</button><button class="btn ghost small" id="ad-close">Actualizar</button></div>
+      </div>
+      <div class="liblist" id="ad-list"></div>
+    </div>
   </section>
 
   <section id="view-history" hidden>
@@ -371,7 +384,7 @@ input[type="date"], select { font-size: 16px; }
       <div class="card" id="admincard" hidden>
         <h3>Administración</h3>
         <p class="note">Eres administrador: ves a todas las personas de este teléfono, entras a sus cuentas, editas sus planes y decides quién puede crear cuenta.</p>
-        <button class="btn primary" id="btn-admin">Administrar usuarios (<span id="admincount">0</span>)</button>
+        <button class="btn primary" id="btn-admin">Ir a Usuarios (<span id="admincount">0</span>)</button>
       </div>
       <div class="card">
         <h3>Ciclo de entrenamiento</h3>
@@ -448,6 +461,7 @@ input[type="date"], select { font-size: 16px; }
     <button class="tab" role="tab" data-view="today" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9v6M6 6v12M18 6v12M21 9v6M6 12h12"/></svg>Hoy</button>
     <button class="tab" role="tab" data-view="plan" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>Plan</button>
     <button class="tab" role="tab" data-view="history" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Historial</button>
+    <button class="tab" role="tab" data-view="users" aria-selected="false" id="tab-users" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.6c2.6.2 4.4 1.9 5 5.4"/></svg>Usuarios</button>
     <button class="tab" role="tab" data-view="settings" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Ajustes</button>
   </div>
 </nav>
@@ -574,16 +588,6 @@ input[type="date"], select { font-size: 16px; }
 </div>
 
 <!-- administración de usuarios -->
-<div class="modal" id="admin" hidden>
-  <div class="box tall" role="dialog" aria-modal="true" aria-labelledby="ad-title">
-    <h3 id="ad-title">Usuarios</h3>
-    <p class="note" id="ad-sum"></p>
-    <label class="checkrow"><input type="checkbox" id="ad-signup"> Cualquiera puede crear su cuenta desde la pantalla de inicio</label>
-    <div id="ad-cloud" hidden><label class="f">Correos invitados (uno por línea; pueden crear cuenta aunque el registro esté cerrado)<textarea id="ad-invited" rows="3" style="font:400 15px var(--body);width:100%;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:8px"></textarea></label><button class="btn ghost small" id="ad-saveinv">Guardar invitaciones</button></div>
-    <div class="liblist" id="ad-list"></div>
-    <div class="row"><button class="btn ghost" id="ad-add">+ Crear cuenta</button><button class="btn primary" id="ad-close">Cerrar</button></div>
-  </div>
-</div>
 <div class="modal" id="aduser" hidden>
   <div class="box tall" role="dialog" aria-modal="true" aria-labelledby="au-title">
     <h3 id="au-title">Usuario</h3>
@@ -678,9 +682,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js?v=21"></script>
-<script src="core.js?v=21"></script>
-<script src="library.js?v=21"></script>
+<script src="config.js?v=22"></script>
+<script src="core.js?v=22"></script>
+<script src="library.js?v=22"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -740,9 +744,15 @@ function enterUser(id) {
   // franja de modo administrador cuando el admin mira la cuenta de otra persona
   const ad = adminAuth(), viewing = ad && ad.id !== id;
   $('#adminbar').hidden = !viewing; if (viewing) $('#adminbar-name').textContent = curUser().name;
-  $('#admincard').hidden = !isAdmin(curUser());
+  $('#admincard').hidden = !isAdmin(curUser()); setUsersTab();
   if ($('#admincard') && isAdmin(curUser())) $('#admincount').textContent = CLOUD_ON ? 'servidor' : U.list.length;
   cloudPush();
+}
+// pestaña "Usuarios": solo para administradores
+function setUsersTab() {
+  const on = isAdmin(curUser()); $('#tab-users').hidden = !on;
+  document.querySelector('.tabs .in').style.gridTemplateColumns = 'repeat(' + (on ? 5 : 4) + ', 1fr)';
+  if (!on && !$('#view-users').hidden) document.querySelector('.tab[data-view="today"]').click();
 }
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 function save() { try { localStorage.setItem(dataKey(U.cur), JSON.stringify(S)); } catch (e) { toast('No se pudo guardar en este teléfono'); } cloudPush(); }
@@ -1857,7 +1867,14 @@ $('#pf-lock').addEventListener('change', async () => {
 // las series, pesos, descansos y grabaciones quedan solo en el teléfono. El administrador ve a todos desde su cuenta.
 const CFG = window.REPCAM_CONFIG || {};
 const CLOUD_ON = !!(CFG.firebase || CFG.mock);
-let cloudUser = null, cloudDoc = null, pendingName = '', cloudT = null, clMode = 'in', cloudNew = false, justSignedIn = false;
+let cloudUser = null, cloudDoc = null, pendingName = '', cloudT = null, clMode = 'in', cloudNew = false, justSignedIn = false, unlockedNow = false, relocking = false, hiddenAt = 0;
+// al volver a la app después de 3 minutos en segundo plano, se pide la huella otra vez
+document.addEventListener('visibilitychange', () => {
+  if (!CLOUD_ON) return;
+  if (document.hidden) { hiddenAt = Date.now(); return; }
+  const cu = U && curUser();
+  if (cu && cu.lock === 'bio' && cu.cred && cloudUser && unlockedNow && $('#cam').hidden && hiddenAt && Date.now() - hiddenAt > 180000) { unlockedNow = false; relocking = true; quickUnlock(cu); }
+});
 const clean = (o) => JSON.parse(JSON.stringify(o));   // el servidor no acepta valores "undefined"
 function showCloudLogin(msg, busy) {
   $('#cl-owner').textContent = CFG.ownerName || 'el administrador';
@@ -1870,7 +1887,7 @@ function setClMode(m) {
 }
 async function startCloud() {
   showCloudLogin('Conectando con el servidor…', true);
-  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=21'); Cloud.init(CFG.firebase); }
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=22'); Cloud.init(CFG.firebase); }
   catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
   Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
 }
@@ -1922,7 +1939,8 @@ async function cloudEnter(u) {
   $('#cloudlogin').hidden = true;
   let un = null; try { un = sessionStorage.getItem('repcam.unlocked'); } catch (e) {}
   // la huella reemplaza a la contraseña al volver a abrir la app; si recién escribiste la contraseña, no se pide
-  if (lu.lock === 'bio' && lu.cred && !justSignedIn && un !== lu.id) { quickUnlock(lu); return; }
+  if (lu.lock === 'bio' && lu.cred && !justSignedIn && !unlockedNow) { quickUnlock(lu); return; }
+  unlockedNow = true;
   justSignedIn = false; enterUser(lu.id);
   // primera vez en este teléfono: ofrecer entrar con huella las próximas veces
   if (lu.lock === 'none' && !lu.bioAsked && await bioAvailable()) await offerBio(lu);
@@ -1936,10 +1954,10 @@ async function quickUnlock(lu) {
   $('#qu-name').textContent = lu.name; $('#qu-msg').textContent = ''; $('#quick').hidden = false; $('#cloudlogin').hidden = true;
   const go = async () => {
     $('#qu-msg').textContent = 'Pon tu dedo en el lector…';
-    try { if (await bioCheck(lu)) { $('#quick').hidden = true; enterUser(lu.id); return; } $('#qu-msg').textContent = 'No se pudo verificar. Intenta de nuevo.'; }
+    try { if (await bioCheck(lu)) { $('#quick').hidden = true; unlockedNow = true; if (U.cur !== lu.id || !S.plan || relocking) enterUser(lu.id); relocking = false; return; } $('#qu-msg').textContent = 'No se pudo verificar. Intenta de nuevo.'; }
     catch (e) { $('#qu-msg').textContent = 'Huella cancelada. Toca "Entrar con huella" o usa tu contraseña.'; }
   };
-  $('#qu-bio').onclick = go; $('#qu-pass').onclick = () => { $('#quick').hidden = true; cloudSignOut(); };
+  $('#qu-bio').onclick = go; $('#qu-pass').onclick = () => { $('#quick').hidden = true; relocking = false; cloudSignOut(); };
   go();
 }
 function offerBio(lu) {
@@ -1981,14 +1999,14 @@ async function cloudRefresh() {
   try {
     const d = await Cloud.getUser(cloudUser.uid); if (!d) return; cloudDoc = d;
     if (d.active === false) { toast('Tu cuenta fue desactivada'); cloudSignOut(); return; }
-    const cu = curUser(); if (cu.role !== d.role) { cu.role = d.role; saveUsers(); $('#admincard').hidden = !isAdmin(cu); }
+    const cu = curUser(); if (cu.role !== d.role) { cu.role = d.role; saveUsers(); $('#admincard').hidden = !isAdmin(cu); setUsersTab(); }
     if (mergeCloud()) { applyPlan(); refreshAll(); if (!$('#view-plan').hidden) renderPlan(); toast('Tu plan se actualizó desde el servidor'); }
   } catch (e) {}
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) cloudRefresh(); });
 async function cloudSignOut() {
   try { sessionStorage.removeItem('repcam.unlocked'); sessionStorage.removeItem('repcam.adminAuth'); } catch (e) {}
-  cloudDoc = null; if (window.Cloud) await Cloud.signOut();
+  cloudDoc = null; unlockedNow = false; if (window.Cloud) await Cloud.signOut();
 }
 
 // ---------- administración de usuarios ----------
@@ -2010,12 +2028,13 @@ function renderAdmin() {
 function openAdmin() {
   if (!adminAuth()) { toast('Solo un administrador puede abrir esto'); return; }
   const me = adminAuth(); if (me.lock === 'none') toast('Consejo: protege tu cuenta de administrador con huella o PIN');
-  renderAdmin(); $('#admin').hidden = false;
+  renderAdmin();
 }
-$('#btn-admin').onclick = openAdmin;
-$('#ad-close').onclick = () => { $('#admin').hidden = true; };
+
+$('#ad-close').onclick = () => { if (CLOUD_ON) openCloudAdmin(); else renderAdmin(); };
+$('#btn-admin').onclick = () => document.querySelector('.tab[data-view="users"]').click();
 $('#ad-signup').onchange = (e) => { U.allowSignup = e.target.checked; saveUsers(); toast(U.allowSignup ? 'Cualquiera puede crear su cuenta' : 'Solo el administrador crea cuentas'); };
-$('#ad-add').onclick = () => { $('#admin').hidden = true; showLogin(true); $('#btn-adduser').hidden = false; $('#btn-adduser').click(); };
+$('#ad-add').onclick = () => { showLogin(true); $('#btn-adduser').hidden = false; $('#btn-adduser').click(); };
 $('#ad-list').addEventListener('click', (ev) => {
   if (CLOUD_ON) return;
   const b = ev.target.closest('[data-ad]'); if (!b) return;
@@ -2033,7 +2052,7 @@ $('#au-save').onclick = () => {
   if (u.id === U.cur) { $('#userchip').textContent = initials(u.name); $('#pf-name').value = u.name; }
   $('#aduser').hidden = true; renderAdmin(); toast('Usuario actualizado');
 };
-$('#au-enter').onclick = () => { const id = adSel.id; $('#aduser').hidden = true; $('#admin').hidden = true; enterUser(id); document.querySelector('.tab[data-view="plan"]').click(); };
+$('#au-enter').onclick = () => { const id = adSel.id; $('#aduser').hidden = true; enterUser(id); document.querySelector('.tab[data-view="plan"]').click(); };
 $('#au-reset').onclick = () => { if (!confirm('¿Quitar la huella o PIN de ' + adSel.name + '? Podrá entrar sin bloqueo y configurarlo de nuevo.')) return; adSel.lock = 'none'; delete adSel.cred; delete adSel.pin; saveUsers(); $('#au-reset').disabled = true; renderAdmin(); toast('Acceso restablecido'); };
 $('#au-export').onclick = () => { const st = userStats(adSel); downloadBlob(new Blob([JSON.stringify(st.data, null, 1)], { type: 'application/json' }), 'RepCam_' + adSel.name.replace(/\s+/g, '_') + '_' + todayYmd() + '.json'); };
 $('#au-del').onclick = () => {
@@ -2052,7 +2071,7 @@ let cloudList = [], cAd = null;
 const fmtTs = (ms) => ms ? new Date(ms).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
 async function openCloudAdmin() {
   if (!isAdmin(curUser())) { toast('Solo un administrador puede abrir esto'); return; }
-  $('#admin').hidden = false; $('#ad-list').innerHTML = '<p class="note">Cargando usuarios…</p>';
+  $('#ad-list').innerHTML = '<p class="note">Cargando usuarios…</p>';
   try {
     const [list, cfg] = await Promise.all([Cloud.listUsers(), Cloud.getConfig()]);
     cloudList = list.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
@@ -2092,7 +2111,7 @@ if (CLOUD_ON) {
   // con servidor: la huella reemplaza la contraseña al abrir la app (el respaldo es la contraseña)
   $('#pf-lock').closest('.setting').querySelector('span').innerHTML = 'Entrar con huella<small>Al abrir la app en este teléfono, en vez de la contraseña</small>';
   $('#pf-lock').innerHTML = '<option value="none">No, con contraseña</option><option value="bio">Sí, con huella</option>';
-  $('#btn-admin').onclick = openCloudAdmin;
+
   $('#ad-add').hidden = true; $('#au-reset').hidden = true; $('#ad-cloud').hidden = false;
   $('#au-enter').textContent = 'Ver su plan'; $('#au-export').textContent = 'Descargar su perfil'; $('#au-del').textContent = 'Eliminar perfil';
   $('#ad-signup').onchange = async (e) => { try { await Cloud.setConfig({ allowSignup: e.target.checked }); toast(e.target.checked ? 'Cualquiera puede crear su cuenta' : 'Solo personas invitadas'); } catch (er) { toast(Cloud.msg(er)); } };
@@ -2421,7 +2440,8 @@ $('#set-model').onchange = (e) => { S.settings.model = e.target.value; save(); t
 // ---------- navegación ----------
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
   document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', String(x === t)));
-  ['today', 'plan', 'history', 'settings'].forEach((v) => { $('#view-' + v).hidden = v !== t.dataset.view; });
+  ['today', 'plan', 'users', 'history', 'settings'].forEach((v) => { $('#view-' + v).hidden = v !== t.dataset.view; });
+  if (t.dataset.view === 'users') { if (CLOUD_ON) openCloudAdmin(); else openAdmin(); }
   if (t.dataset.view === 'plan') renderPlan();
   if (t.dataset.view === 'history') renderHistory();
   if (t.dataset.view === 'settings') { renderRecInfo(); renderInventory(); renderCalibInfo(); }
@@ -2619,7 +2639,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 21;
+const APP_VER = 22;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
