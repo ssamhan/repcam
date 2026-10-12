@@ -174,6 +174,8 @@ input[type="date"], select { font-size: 16px; }
 .adminbar button { border: 0; border-radius: 8px; padding: 4px 10px; font: 600 13px var(--body); background: #1a1200; color: #fff; cursor: pointer; }
 .ubtn.off { opacity: .5; }
 .ubtn .role { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .03em; }
+.micbadge.off { opacity: .6; }
+#cam-mic { pointer-events: auto; cursor: pointer; }
 .micbadge { display: inline-block; align-self: center; font-size: 12px; font-weight: 600; color: #fff; background: rgb(0 0 0 / .55); border-radius: 99px; padding: 3px 10px; margin-bottom: 6px; }
 .userchip { width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); font: 700 14px var(--body); cursor: pointer; flex: none; }
 .login { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 20px 16px; overflow-y: auto; }
@@ -193,6 +195,8 @@ input[type="date"], select { font-size: 16px; }
 .pitem button, .pday .x { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer; font-size: 16px; }
 .pitem button:disabled { opacity: .3; }
 .liblist { display: flex; flex-direction: column; gap: 6px; }
+.fphead { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 6px; }
+.librow.new { border-style: dashed; color: var(--accent); font-weight: 700; }
 .facheck { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 15px; }
 .facheck input { width: 22px; height: 22px; } .facheck small { display: block; color: var(--muted); font-size: 13px; }
 .librow { display: flex; flex-direction: column; gap: 2px; text-align: left; background: var(--surface-2); border: 0; border-radius: 10px; padding: 10px 12px; cursor: pointer; color: var(--fg); font: 600 15px var(--body); }
@@ -328,7 +332,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v26</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v27</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -496,7 +500,7 @@ input[type="date"], select { font-size: 16px; }
       <span class="qual" id="cam-qual">Buscando…</span>
       <button class="iconbtn" id="cam-voice" aria-label="Voz" aria-pressed="true" style="width:36px;height:36px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
       <button class="skipex" id="cam-skipex" hidden>Saltar ejercicio ›</button>
-      <button class="skipex" id="cam-freeex" hidden>¿Qué ejercicio? ▾</button>
+      <button class="skipex" id="cam-freeex" hidden>✎ ¿Qué ejercicio?</button>
       <button class="skipex" id="cam-clean" aria-pressed="false">Modo TV</button>
       <button class="skipex" id="cam-rot">Girar imagen</button>
       <span class="qual" id="cam-post" hidden></span>
@@ -668,11 +672,23 @@ input[type="date"], select { font-size: 16px; }
 <div class="modal" id="freepick" hidden>
   <div class="box tall" role="dialog" aria-modal="true" aria-labelledby="fp-title">
     <h3 id="fp-title">¿Qué ejercicio estás haciendo?</h3>
-    <p class="note" id="fp-note">Ordenados por parecido con tu movimiento. Lo que elijas lo aprendo para la próxima vez.</p>
-    <div class="liblist" id="fp-list"></div>
-    <input type="search" id="fp-q" placeholder="Buscar otro ejercicio…" style="font-size:16px" autocomplete="off">
-    <div class="liblist" id="fp-search"></div>
+    <input type="search" id="fp-q" placeholder="Busca o escribe el nombre…" style="font-size:16px" autocomplete="off">
+    <label class="facheck" id="fp-fixwrap" hidden><input type="checkbox" id="fp-fix" checked><span id="fp-fixtxt"></span></label>
+    <div id="fp-body"></div>
     <div class="row"><button class="btn ghost" id="fp-cancel">Cerrar</button></div>
+  </div>
+</div>
+<!-- ejercicio nuevo (propio) -->
+<div class="modal" id="newex" hidden style="z-index:45">
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="nx-title">
+    <h3 id="nx-title">Ejercicio nuevo</h3>
+    <p class="note">Queda guardado en tu biblioteca para usarlo en tus planes y en el entrenamiento libre.</p>
+    <div class="setting"><span>Nombre</span><input type="text" id="nx-name" style="font-size:16px" autocomplete="off"></div>
+    <div class="setting"><span>Músculo principal</span><select id="nx-mus"></select></div>
+    <div class="setting"><span>Equipo<small>Ej.: polea baja + cuerda</small></span><input type="text" id="nx-eq" style="font-size:16px" autocomplete="off"></div>
+    <div class="setting"><span>Tipo de movimiento<small>Para contar las reps con la cámara</small></span><select id="nx-pat"></select></div>
+    <div class="setting"><span>Reps objetivo</span><select id="nx-reps"><option>6–10</option><option selected>8–12</option><option>10–15</option><option>12–20</option><option>15–25</option></select></div>
+    <div class="row"><button class="btn primary" id="nx-save">Guardar ejercicio</button><button class="btn ghost" id="nx-cancel">Cancelar</button></div>
   </div>
 </div>
 <!-- entrenamiento libre: sumarlo al plan -->
@@ -718,9 +734,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js?v=26"></script>
-<script src="core.js?v=26"></script>
-<script src="library.js?v=26"></script>
+<script src="config.js?v=27"></script>
+<script src="core.js?v=27"></script>
+<script src="library.js?v=27"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -770,6 +786,7 @@ function readUser(id) {
 }
 // plan de la persona → formato del contador
 function applyPlan() {
+  registerCustom();
   C.setPlan({ name: S.plan.name, days: S.plan.days.map((d) => ({ key: d.key, name: d.name || RepLib.DAY_NAMES[d.key], session: d.session || '', items: d.items.map((it) => RepLib.resolve(it, d.key)) })) });
   if (!selDay || WEEK7.indexOf(selDay) < 0) selDay = todayKey();
 }
@@ -1223,9 +1240,9 @@ function setupTip(ex) {
   return camTip(ex);
 }
 function introSay(ex) {
-  if (ex.free) return 'Entrenamiento libre. Haz el ejercicio que quieras: lo reconozco y cuento las repeticiones.' + (voiceMode() ? ' Di ' + startWords()[0] + ' para empezar cada serie.' : ' Empieza cuando quieras.');
+  if (ex.free) return 'Entrenamiento libre. Haz el ejercicio que quieras: lo reconozco y cuento las repeticiones.' + (voiceMode() ? ' Di tu palabra para empezar cada serie.' : ' Empieza cuando quieras.');
   const n = C.plannedSets(ex, S.overrides, weekNow()), done = logsToday(ex.id).length;
-  return ex.name + '. ' + (done ? 'Llevas ' + numWord(done) + ' de ' + seriesWord(n) + '.' : seriesWord(n) + ' de ' + ex.repsText.replace('–', ' a ') + '.') + ' ' + voiceTip(ex) + (S.settings.startMode === 'voice' && SpeechRec ? ' Ponte en posición y di ' + startWords()[0] + '.' : rhythmMode() ? ' Empieza cuando quieras.' : ' Ponte en posición de inicio.');
+  return ex.name + '. ' + (done ? 'Llevas ' + numWord(done) + ' de ' + seriesWord(n) + '.' : seriesWord(n) + ' de ' + ex.repsText.replace('–', ' a ') + '.') + ' ' + voiceTip(ex) + (S.settings.startMode === 'voice' && SpeechRec ? ' Ponte en posición y di tu palabra para empezar.' : rhythmMode() ? ' Empieza cuando quieras.' : ' Ponte en posición de inicio.');
 }
 async function openCam(ex, guided, queue, opts) {
   opts = opts || {};
@@ -1603,7 +1620,7 @@ function tick(now) {
     if (voiceMode() && stopW.length) {
       // con voz la serie termina cuando lo dices (o tocas Terminar serie); si se te olvida, te lo recuerdo
       if (idle < 20000) cam.askedEnd = false;
-      else if (!cam.askedEnd) { cam.askedEnd = true; say('¿Terminaste? Di ' + stopW[0] + ' o toca Terminar serie.', true); }
+      else if (!cam.askedEnd) { cam.askedEnd = true; say('¿Terminaste? Dime tu palabra para terminar o toca Terminar serie.', true); }
       if (idle > 90000) endSet(true);
     } else if (idle > S.settings.autoEnd * 1000 || (gone > 6000 && idle > 3000)) endSet(true);
   }
@@ -1663,7 +1680,8 @@ function handleGate(out, now) {
   }
   if (out.state === 'search' && !cam.nextEx && cam.phase !== 'set' && cam.phase !== 'done' && (cam.phase === 'wait' || restOver(now))) {
     const wait = out.reason === 'wrongPosture' ? 2500 : 5000;
-    if (now - cam.searchSince > wait && now - cam.hintT > 10000) { cam.hintT = now; say(gateMsg(out) + '.', true); }
+    // con voz no se repite "di listo" en voz alta (el micrófono lo oiría): solo queda escrito en pantalla
+    if (now - cam.searchSince > wait && now - cam.hintT > 10000 && out.reason !== 'voice') { cam.hintT = now; say(gateMsg(out) + '.', true); }
   }
   if (S.settings.debug && now - (cam.dbgT || 0) > 250) {
     cam.dbgT = now; const d = cam.counter.debug(), f2 = (x, n) => x == null || !isFinite(x) ? '—' : x.toFixed(n);
@@ -1844,7 +1862,7 @@ function tickRest(now) {
     cam.restBeeped = true; restAlarm();
     const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
     const ready = cam.counter.state === 'armed';
-    say((done < pl ? cheerWord() + ' Serie ' + numWord(done + 1) + '.' : cheerWord()) + (ready ? '' : S.settings.startMode === 'voice' && SpeechRec ? ' Di ' + startWords()[0] + ' cuando estés en posición.' : ' Ponte en posición de inicio.'), true);
+    say((done < pl ? cheerWord() + ' Serie ' + numWord(done + 1) + '.' : cheerWord()) + (ready ? '' : S.settings.startMode === 'voice' && SpeechRec ? ' Di tu palabra para empezar cuando estés en posición.' : ' Ponte en posición de inicio.'), true);
     cam.hintT = now;
   }
 }
@@ -1885,7 +1903,7 @@ function setFreeEx(ref, byUser) {
   if ($('#cam-weight').value === '') $('#cam-weight').value = suggestedWeight(F.ex) ?? '';
   freeLabel(); updateHud();
 }
-function freeLabel() { const F = cam.free; $('#cam-freeex').textContent = F && F.ex ? F.ex.name + ' ▾' : '¿Qué ejercicio? ▾'; $('#cam-name').textContent = 'Libre' + (F && F.ex ? ' · ' + F.ex.name : ''); }
+function freeLabel() { const F = cam.free; $('#cam-freeex').textContent = F && F.ex ? '✎ Cambiar: ' + F.ex.name : '✎ ¿Qué ejercicio?'; $('#cam-name').textContent = 'Libre' + (F && F.ex ? ' · ' + F.ex.name : ''); }
 function freeIdentify(final) {
   const F = cam.free; if (!F) return;
   const ts = cam.repTs || []; if (ts.length < 3) return;
@@ -1899,38 +1917,102 @@ function freeIdentify(final) {
   setFreeEx(best.ref, false);
   if (!final) say('Parece ' + F.ex.name + '.', false);
 }
+// tus ejercicios: los de tu plan, los que creaste y los que ya hiciste alguna vez
+function myExercises(day) {
+  const seen = new Set(), out = [];
+  const add = (ref, e, why) => { if (!e || seen.has(e.name)) return; seen.add(e.name); out.push({ ref, name: e.name, sub: [e.equip, e.muscle].filter(Boolean).join(' · '), why }); };
+  C.PLAN.forEach((e) => add(e.id, e, 'Tu plan · ' + (RepLib.DAY_NAMES[e.day] || '')));
+  Object.values((S.plan && S.plan.custom) || {}).forEach((x) => add(refFor(x.lib, day), RepLib.LIB[x.lib] || x, 'Creado por ti'));
+  [...new Set(S.logs.map((l) => l.exId))].forEach((id) => { const e = exById(id); if (e) add(id, e, 'Ya lo hiciste'); });
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+}
+const fpRow = (o, sel) => '<button class="librow" data-ref="' + esc(o.ref) + '">' + esc(o.name) + '<small>' + esc(o.why || '') + (o.sub ? ' · ' + esc(o.sub) : '') + (sel ? ' · elegido' : '') + '</small></button>';
+function renderFreePick() {
+  const F = cam.free; if (!F) return;
+  const q = normWord($('#fp-q').value), day = F.day, mine = myExercises(day);
+  const match = (n) => !q || normWord(n).includes(q);
+  let h = '';
+  if (!q) {
+    const why = { tuyo: 'Se parece a tus series anteriores', plan: 'De tu plan, por el movimiento', regla: 'Por el movimiento' };
+    if (F.opts.length) h += '<div class="fphead">Sugeridos</div><div class="liblist">' + F.opts.slice(0, 4).map((o) => fpRow({ ref: o.ref, name: o.name, why: why[o.why] }, F.ref === o.ref)).join('') + '</div>';
+    h += '<div class="fphead">Tus ejercicios</div><div class="liblist">' + mine.map((o) => fpRow(o, F.ref === o.ref)).join('') + '</div>';
+  } else {
+    const m = mine.filter((o) => match(o.name)), names = new Set(m.map((o) => o.name));
+    const lib = Object.values(RepLib.LIB).filter((x) => !names.has(x.name) && match(x.name + ' ' + x.equip)).slice(0, 15).map((x) => ({ ref: refFor(x.lib, day), name: x.name, why: 'Biblioteca', sub: x.equip }));
+    if (m.length) h += '<div class="fphead">Tus ejercicios</div><div class="liblist">' + m.map((o) => fpRow(o, F.ref === o.ref)).join('') + '</div>';
+    if (lib.length) h += '<div class="fphead">Biblioteca</div><div class="liblist">' + lib.map((o) => fpRow(o, F.ref === o.ref)).join('') + '</div>';
+    const exact = m.concat(lib).some((o) => normWord(o.name) === q);
+    if (!exact) h += '<div class="fphead">¿No está?</div><button class="librow new" id="fp-create">+ Crear «' + esc($('#fp-q').value.trim()) + '» como ejercicio nuevo</button>';
+  }
+  $('#fp-body').innerHTML = h;
+}
 function openFreePick() {
   const F = cam.free; if (!F) return;
   if (!F.opts.length && cam.counter) F.opts = freeOptions(null);
-  const row = (o) => '<button class="librow" data-ref="' + esc(o.ref) + '">' + esc(o.name) + '<small>' + (o.why === 'tuyo' ? 'Se parece a tus series anteriores' : o.why === 'plan' ? 'De tu plan' : 'Por el movimiento') + (F.ref === o.ref ? ' · elegido' : '') + '</small></button>';
-  $('#fp-list').innerHTML = F.opts.slice(0, 8).map(row).join('') || '<p class="note">Aún no hay suficientes repeticiones para adivinar: búscalo abajo.</p>';
-  $('#fp-q').value = ''; $('#fp-search').innerHTML = ''; $('#freepick').hidden = false;
+  const l = cam.lastSaved;
+  $('#fp-fixwrap').hidden = !(l && l.free);
+  if (l && l.free) { $('#fp-fix').checked = true; $('#fp-fixtxt').innerHTML = 'Corregir también la serie guardada<small>' + esc(l.exName) + ' · ' + l.reps + ' reps</small>'; }
+  $('#fp-q').value = ''; renderFreePick(); $('#freepick').hidden = false;
 }
 $('#cam-freeex').onclick = openFreePick;
+$('#cam-name').addEventListener('click', () => { if (cam.free) openFreePick(); });
 $('#fp-cancel').onclick = () => { $('#freepick').hidden = true; };
-$('#fp-q').addEventListener('input', () => {
-  const q = $('#fp-q').value.trim().toLowerCase(); if (q.length < 2) { $('#fp-search').innerHTML = ''; return; }
-  const day = cam.free ? cam.free.day : selDay, seen = new Set(), res = [];
-  C.PLAN.concat(Object.values(RepLib.LIB)).forEach((x) => { if (res.length >= 12 || seen.has(x.name) || !(x.name + ' ' + (x.equip || '')).toLowerCase().includes(q)) return; seen.add(x.name); res.push({ ref: x.lib && !x.day ? refFor(x.lib, day) : x.id, name: x.name, equip: x.equip }); });
-  $('#fp-search').innerHTML = res.map((o) => '<button class="librow" data-ref="' + esc(o.ref) + '">' + esc(o.name) + '<small>' + esc(o.equip || '') + '</small></button>').join('') || '<p class="note">Nada con ese nombre.</p>';
-});
-document.getElementById('freepick').addEventListener('click', (ev) => {
-  const b = ev.target.closest('[data-ref]'); if (!b || !cam.free) return;
-  const F = cam.free, ref = b.dataset.ref, prevRef = F.ref;
+$('#fp-q').addEventListener('input', renderFreePick);
+function pickFree(ref) {
+  const F = cam.free; if (!F) return; const prevEx = F.ex;
   setFreeEx(ref, true); $('#freepick').hidden = true;
-  // si la serie recién guardada era de otro ejercicio, se corrige (y lo aprendido también)
+  // la serie recién guardada también se corrige (y lo aprendido también)
   const l = cam.lastSaved;
-  if (l && l.free && cam.phase !== 'set' && prevRef && prevRef !== ref) {
+  if (l && l.free && $('#fp-fix').checked && l.exId !== F.ex.id) {
+    const prevRef = Object.keys(F.done).find((r) => { const e = refEx(r, F.day); return e && e.id === l.exId; });
     l.exId = F.ex.id; l.exName = F.ex.name; l.day = F.ex.day; l.set = logsToday(F.ex.id).filter((x) => x !== l).length + 1;
-    if (F.done[prevRef]) { F.done[prevRef]--; if (!F.done[prevRef]) delete F.done[prevRef]; } F.done[ref] = (F.done[ref] || 0) + 1;
+    if (prevRef && F.done[prevRef]) { F.done[prevRef]--; if (!F.done[prevRef]) delete F.done[prevRef]; } F.done[ref] = (F.done[ref] || 0) + 1;
     if (cam.lastSig) { const a = (S.sigs || {})[cam.lastSig.key] || []; const i = a.indexOf(cam.lastSig.sg); if (i >= 0) a.splice(i, 1); const key = F.ex.lib || F.ex.id; learnSig(key, cam.lastSig.sg); cam.lastSig.key = key; }
     save(); toast('Serie corregida: ' + F.ex.name);
-  }
+  } else if (prevEx !== F.ex) toast('Ejercicio: ' + F.ex.name);
   say(F.ex.name + '. Lo recordaré.', true);
+}
+document.getElementById('freepick').addEventListener('click', (ev) => {
+  if (ev.target.closest('#fp-create')) { openNewEx($('#fp-q').value.trim(), (lib) => pickFree(refFor(lib, cam.free ? cam.free.day : selDay))); return; }
+  const b = ev.target.closest('[data-ref]'); if (b && cam.free) pickFree(b.dataset.ref);
 });
+// ---------- ejercicios propios (se guardan con tu plan, así viajan a tus otros dispositivos) ----------
+const PATTERNS = {
+  press_h: ['Empuje horizontal (press de pecho)', 'elbow', true], press_v: ['Empuje vertical (press de hombro)', 'elbow', false],
+  pull: ['Tirón vertical (jalón, dominada)', 'elbow', true], row: ['Remo (tirón horizontal)', 'elbow', true], curl: ['Curl (doblar el codo)', 'elbow', true],
+  pushdown: ['Tríceps hacia abajo', 'elbow', false], overhead: ['Tríceps sobre la cabeza', 'elbow', false], raise: ['Elevación de brazos', 'shoulderAbd', false],
+  fly: ['Aperturas', 'wristDist', true], facepull: ['Face pull', 'elbow', true], squat: ['Sentadilla / prensa', 'kneeMin', true], lunge: ['Zancada', 'kneeMin', true],
+  hinge: ['Bisagra de cadera (peso muerto)', 'hip', true], hipthrust: ['Hip thrust / puente', 'hip', false], legext: ['Extensión de rodilla', 'knee', false],
+  legcurl: ['Curl femoral', 'knee', true], calf: ['Gemelos', 'heel', false], crunch: ['Abdominales', 'hip', true],
+};
+function registerCustom() {
+  RepLib.CAT_NAME.propio = 'Propio';
+  Object.keys(RepLib.LIB).forEach((k) => { if (RepLib.LIB[k].custom) delete RepLib.LIB[k]; });
+  Object.values((S.plan && S.plan.custom) || {}).forEach((x) => { RepLib.LIB[x.lib] = Object.assign({}, x); });
+}
+let newExDone = null;
+function openNewEx(name, done, pattern) {
+  newExDone = done;
+  $('#nx-name').value = name || '';
+  $('#nx-mus').innerHTML = RepLib.MUSCLES.map((m) => '<option>' + m + '</option>').join('');
+  const guess = pattern || (cam.free && cam.free.opts[0] && (refEx(cam.free.opts[0].ref, cam.free.day) || {}).pattern) || 'curl';
+  $('#nx-pat').innerHTML = Object.keys(PATTERNS).map((k) => '<option value="' + k + '"' + (k === guess ? ' selected' : '') + '>' + PATTERNS[k][0] + '</option>').join('');
+  $('#nx-eq').value = ''; $('#newex').hidden = false; setTimeout(() => $('#nx-name').focus(), 50);
+}
+$('#nx-cancel').onclick = () => { $('#newex').hidden = true; newExDone = null; };
+$('#nx-save').onclick = () => {
+  const name = $('#nx-name').value.trim(); if (name.length < 3) { toast('Escribe el nombre del ejercicio'); return; }
+  const pat = $('#nx-pat').value, P = PATTERNS[pat] || PATTERNS.curl, mus = $('#nx-mus').value;
+  const lib = 'u_' + normWord(name).replace(/ /g, '_').slice(0, 24) + '_' + Date.now().toString(36).slice(-4);
+  const x = { lib, name, cat: 'propio', needs: [], equip: $('#nx-eq').value.trim() || 'Propio', pattern: pat, metric: P[1], startHigh: P[2], inc: 2.5, muscle: mus, muscle2: '', post: [], pose: null,
+    repsText: $('#nx-reps').value, rest: /Pecho|Espalda|Cuádriceps|Femoral|Glúteo/.test(mus) ? 120 : 75, notes: '', rir: '1–2', rom3d: false, custom: true };
+  S.plan.custom = S.plan.custom || {}; S.plan.custom[lib] = x; S.planAt = Date.now(); registerCustom(); save();
+  $('#newex').hidden = true; toast('Ejercicio creado: ' + name);
+  const d = newExDone; newExDone = null; if (d) d(lib);
+};
 let freeAddState = null;
 // ¿ya está ese ejercicio en el día k del plan?
-function inPlanDay(ex, k) { const d = planDay(k); return !!d && d.items.some((it) => (ex.lib && it.lib === ex.lib && !it.id) || (it.id && it.id === ex.id) || (!ex.lib && it.name === ex.name)); }
+function inPlanDay(ex, k) { const d = planDay(k); return !!d && d.items.some((it) => (ex.lib && it.lib === ex.lib) || (it.id && it.id === ex.id) || (!ex.lib && it.name === ex.name)); }
 function renderFreeAdd() {
   const st = freeAddState; if (!st) return; const k = $('#fa-day').value;
   $('#fa-list').innerHTML = st.rows.map((r, i) => {
@@ -1981,46 +2063,58 @@ const hasWord = (text, list) => { const t = ' ' + normWord(text) + ' '; return l
 const voiceMode = () => S.settings.startMode === 'voice' && !!SpeechRec && S.settings.mode !== 'sensor';
 // lo que dijo la app en los últimos segundos: el micrófono a veces la escucha y la confunde con tu palabra
 const spokenLog = [];
+let speakUntil = 0;
 function isEcho(text, now) {
   const ws = normWord(text).split(' ').filter(Boolean); if (!ws.length) return true;
-  while (spokenLog.length && now - spokenLog[0].t > 12000) spokenLog.shift();
+  while (spokenLog.length && now - spokenLog[0].t > 10000) spokenLog.shift();
   return spokenLog.some((u) => { let n = 0; ws.forEach((w) => { if (u.w.has(w)) n++; }); return n >= 2 || (ws.length >= 2 && n >= ws.length - 1 && n > 0); });
 }
-const shortCmd = (text) => normWord(text).split(' ').filter(Boolean).length <= 4;   // tu palabra, no una frase (ni la música)
+const nWords = (text) => normWord(text).split(' ').filter(Boolean).length;
+// ¿la app dijo esta palabra hace poco? (entonces solo vale si la dices sola, después de que la app calló)
+const appSaid = (w, now, ms) => spokenLog.some((u) => now - u.t < ms && u.w.has(w));
+function micBadge(txt, on) { const b = $('#cam-mic'); b.hidden = false; b.textContent = txt; b.classList.toggle('off', !on); }
+let heardT = 0, recAlive = 0;
+function onHeard(e) {
+  const now = performance.now();
+  for (let i = e.resultIndex; i < e.results.length; i++) {
+    const res = e.results[i], fin = res.isFinal;
+    const alts = [...res].map((a) => a.transcript), first = alts[0] || '', all = alts.join(' ');
+    if (!normWord(first)) continue;
+    if (fin) { REC.ev('heard', normWord(all).slice(0, 60)); micBadge('🎙 oí: ' + normWord(first).slice(0, 24), true); heardT = now; }
+    const talking = now < speakUntil;
+    // mientras la app habla o justo después: solo la palabra sola; nunca algo que se parece a lo que dijo la app
+    if (nWords(first) > 4 || isEcho(first, now)) { if (fin) REC.ev('voiceIgnored', normWord(first).slice(0, 60)); continue; }
+    const ok = (list) => list.find((w) => hasWord(all, [w]) && !((talking || appSaid(w, now, 4000)) && nWords(first) > 1));
+    const sw = cam.counter && cam.counter.state !== 'armed' && !cam.nextEx && cam.phase !== 'done' ? ok(startWords()) : null;
+    if (sw && !(talking && appSaid(sw, now, 2500))) {
+      if (cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); REC.ev('voiceArm', normWord(all)); micBadge('🎙 ¡empezamos!', true); }
+      return;
+    }
+    const stops = wordsOf(S.settings.stopWords);
+    const st = stops.length && cam.phase === 'set' && curReps() > 0 ? ok(stops) : null;
+    if (st && (fin || nWords(first) === 1)) { REC.ev('voiceStop', normWord(all)); micBadge('🎙 serie terminada', true); endSet(false); return; }
+  }
+}
 function listenStart() {
   if (!SpeechRec || S.settings.startMode !== 'voice' || $('#cam').hidden) return;
   recWanted = true; if (srec) return;
   try {
-    srec = new SpeechRec(); srec.lang = 'es-CL'; srec.continuous = true; srec.interimResults = true; srec.maxAlternatives = 3;
-    srec.onresult = (e) => {
-      const now = performance.now();
-      if (speechSynthesis.speaking || now - lastSpeechEnd < 1200) return;   // es la voz de la app
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const alts = [...e.results[i]].map((a) => a.transcript).join(' '), first = e.results[i][0] ? e.results[i][0].transcript : alts;
-        if (!shortCmd(first) || isEcho(first, now)) { if (e.results[i].isFinal) REC.ev('voiceIgnored', normWord(first).slice(0, 60)); continue; }
-        if (cam.counter && cam.counter.state !== 'armed' && !cam.nextEx && cam.phase !== 'done' && hasWord(alts, startWords())) {
-          if (cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); REC.ev('voiceArm', normWord(alts)); }
-          return;
-        }
-        const stops = wordsOf(S.settings.stopWords);
-        if (stops.length && cam.phase === 'set' && curReps() > 0 && e.results[i].isFinal && hasWord(alts, stops)) { REC.ev('voiceStop'); endSet(false); return; }
-      }
-    };
-    srec.onend = () => { srec = null; if (recWanted && !$('#cam').hidden) setTimeout(relisten, recFails > 3 ? 2000 : 250); };
-    srec.onerror = (e) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { recWanted = false; toast('Permite el micrófono para empezar con la voz'); }
+    const r = new SpeechRec(); srec = r; r.lang = 'es-CL'; r.continuous = true; r.interimResults = true; r.maxAlternatives = 3;
+    r.onresult = onHeard;
+    // el micrófono sigue siempre encendido (también mientras la app habla): el eco se filtra por el texto
+    r.onend = () => { if (srec === r) srec = null; if (recWanted && !$('#cam').hidden) { micBadge('🎙 reconectando…', false); setTimeout(listenStart, recFails > 3 ? 1500 : 150); } };
+    r.onerror = (e) => {
+      REC.ev('micError', e.error);
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { recWanted = false; micBadge('🎙 sin permiso: toca aquí', false); toast('Permite el micrófono para empezar con la voz'); }
       else if (e.error === 'network') { recFails++; if (recFails === 3) toast('Sin internet: el reconocimiento de voz no funciona. Usa el botón.'); }
+      else if (e.error === 'audio-capture') { recFails++; micBadge('🎙 micrófono ocupado', false); }
     };
-    srec.onstart = () => { recFails = 0; $('#cam-mic').hidden = false; };
-    srec.start();
-  } catch (e) { srec = null; }
+    r.onstart = () => { recFails = 0; recAlive = performance.now(); if (performance.now() - heardT > 3000) micBadge('🎙 escuchando', true); };
+    r.start();
+  } catch (e) { srec = null; recFails++; if (recWanted) setTimeout(listenStart, 1500); }
 }
-// vuelve a escuchar solo cuando la app terminó de hablar (si no, se escucha a sí misma)
-function relisten() {
-  if (!recWanted || $('#cam').hidden || srec) return;
-  if (speechSynthesis.speaking || performance.now() - lastSpeechEnd < 700) { setTimeout(relisten, 300); return; }
-  listenStart();
-}
+// tocar el indicador reinicia el micrófono (en algunos teléfonos hace falta un toque)
+document.addEventListener('click', (ev) => { if (ev.target.closest('#cam-mic')) { recWanted = true; try { srec && srec.abort(); } catch (e) {} srec = null; recFails = 0; listenStart(); toast('Micrófono reiniciado'); } });
 function stopListening() { recWanted = false; $('#cam-mic').hidden = true; try { srec && srec.abort(); } catch (e) {} srec = null; }
 
 // ---------- voz ----------
@@ -2035,11 +2129,12 @@ function say(text, interrupt) {
   if (!S.settings.voice || !('speechSynthesis' in window)) return;
   try {
     if (interrupt) speechSynthesis.cancel();
-    spokenLog.push({ t: performance.now(), w: new Set(normWord(text).split(' ').filter((x) => x.length > 1)) });
-    if (srec) { try { srec.abort(); } catch (e) {} }   // micrófono en pausa mientras la app habla
+    const t0 = performance.now(), rate = S.settings.voiceRate || 1.15;
+    spokenLog.push({ t: t0, w: new Set(normWord(text).split(' ').filter((x) => x.length > 1)) });
+    speakUntil = Math.max(interrupt ? 0 : speakUntil, t0) + (String(text).length * 70) / rate + 500;   // estimado (en Android "speaking" no es confiable)
     const u = new SpeechSynthesisUtterance(text); u.lang = esVoice ? esVoice.lang : 'es-ES'; if (esVoice) u.voice = esVoice;
     u.rate = S.settings.voiceRate || 1.15; u.volume = S.settings.voiceVol ?? 1; u.pitch = 1.05;
-    u.onend = u.onerror = () => { lastSpeechEnd = performance.now(); if (recWanted && !srec) setTimeout(relisten, 700); };
+    u.onend = u.onerror = () => { lastSpeechEnd = performance.now(); speakUntil = Math.min(speakUntil, lastSpeechEnd + 400); };
     speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -2200,7 +2295,7 @@ function setClMode(m) {
 }
 async function startCloud() {
   showCloudLogin('Conectando con el servidor…', true);
-  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=26'); Cloud.init(CFG.firebase); }
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=27'); Cloud.init(CFG.firebase); }
   catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
   Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
 }
@@ -2530,19 +2625,23 @@ function renderLib() {
   list.sort((a, b) => (libMus ? (a.muscle === libMus ? 0 : 1) - (b.muscle === libMus ? 0 : 1) : 0) || RepLib.MUSCLES.indexOf(a.muscle) - RepLib.MUSCLES.indexOf(b.muscle));
   const ok = list.filter((x) => RepLib.available(x, eq)), no = list.filter((x) => !RepLib.available(x, eq));
   const row = (x, off) => '<button class="librow' + (off ? ' off' : '') + '" data-lib="' + x.lib + '">' + esc(x.name) + '<small>' + esc(RepLib.CAT_NAME[x.cat]) + ' · ' + esc(x.equip) + ' · ' + esc(x.muscle) + (x.muscle2 ? ' + ' + esc(x.muscle2) : '') + ' · ' + x.repsText + ' reps' + (off ? ' · falta equipo' : '') + '</small></button>';
-  $('#lp-list').innerHTML = (ok.map((x) => row(x, false)).join('') + (mine ? '' : no.map((x) => row(x, true)).join(''))) || '<p class="note">Nada con ese filtro.</p>';
+  $('#lp-list').innerHTML = ((ok.map((x) => row(x, false)).join('') + (mine ? '' : no.map((x) => row(x, true)).join(''))) || '<p class="note">Nada con ese filtro.</p>') +
+    '<button class="librow new" id="lp-create">+ Crear ' + (q ? '«' + esc($('#lp-q').value.trim()) + '»' : 'un ejercicio') + ' nuevo</button>';
 }
 $('#lp-q').addEventListener('input', renderLib); $('#lp-mine').addEventListener('change', renderLib);
 $('#lp-mus').addEventListener('click', (ev) => { const b = ev.target.closest('[data-mus]'); if (!b) return; libMus = b.dataset.mus === 'Todos' ? null : b.dataset.mus; renderLib(); });
 $('#lp-cancel').onclick = () => { $('#libpick').hidden = true; };
 $('#lp-list').addEventListener('click', (ev) => {
-  const b = ev.target.closest('[data-lib]'); if (!b) return;
-  const x = RepLib.LIB[b.dataset.lib], d = planDay(libTarget.day);
+  if (ev.target.closest('#lp-create')) { openNewEx($('#lp-q').value.trim(), addLibToPlan, null); return; }
+  const b = ev.target.closest('[data-lib]'); if (!b) return; addLibToPlan(b.dataset.lib);
+});
+function addLibToPlan(lib) {
+  const x = RepLib.LIB[lib], d = planDay(libTarget.day);
   let id = x.lib + '@' + d.key; if (d.items.some((it) => (it.id || '') === id)) id += '.' + Date.now().toString(36).slice(-3);
   const it = { id, lib: x.lib, sets: 3 };
   if (libTarget.replace != null) { const old = d.items[libTarget.replace]; it.sets = old.sets || 3; d.items[libTarget.replace] = it; } else d.items.push(it);
   $('#libpick').hidden = true; planChanged(); toast((libTarget.replace != null ? 'Cambiado por ' : 'Agregado: ') + x.name);
-});
+}
 function openTemplates() {
   const eq = S.profile.equip || [];
   const opts = [{ id: 'sebastian', name: C.DEFAULT_PLAN.name, level: 'Intermedio', desc: 'El plan armado para el gimnasio en casa: rack, Smith, polea doble, mancuernas, barra, landmine y elásticos.', days: C.DEFAULT_PLAN.days }].concat(RepLib.TEMPLATES);
@@ -2959,7 +3058,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 26;
+const APP_VER = 27;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
