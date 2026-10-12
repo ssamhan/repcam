@@ -775,7 +775,8 @@
     if (this.state === 'search') {
       this.reason = !see ? 'camera' : !postureOk ? 'wrongPosture' : 'posture';
       let ok = false, need = 700, by = null;
-      if (see && v && postureOk) {
+      if (this.manualOnly) { this.reason = see ? 'voice' : 'camera'; }   // empieza solo con la palabra (o el botón)
+      else if (see && v && postureOk) {
         if (this.always) { ok = true; need = 300; by = 'auto'; }
         else if (this.template) {
           this.dist = poseDistance(this.smoothPose(), this.template);
@@ -786,7 +787,7 @@
           else if (still) { ok = true; need = 1000; by = 'still'; }
         }
       }
-      if (!ok && see && v && !postureOk && this.motion != null && this.motion < 0.1) {
+      if (!ok && !this.manualOnly && see && v && !postureOk && this.motion != null && this.motion < 0.1) {
         if (this.badSince == null) this.badSince = t;
         if (t - this.badSince > 6000) { ok = true; need = 0; by = 'fallback'; this.since = t; out.postureFallback = true; }
       } else if (postureOk || !see) this.badSince = null;

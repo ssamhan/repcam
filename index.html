@@ -171,6 +171,7 @@ input[type="date"], select { font-size: 16px; }
 .adminbar button { border: 0; border-radius: 8px; padding: 4px 10px; font: 600 13px var(--body); background: #1a1200; color: #fff; cursor: pointer; }
 .ubtn.off { opacity: .5; }
 .ubtn .role { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .03em; }
+.micbadge { display: inline-block; align-self: center; font-size: 12px; font-weight: 600; color: #fff; background: rgb(0 0 0 / .55); border-radius: 99px; padding: 3px 10px; margin-bottom: 6px; }
 .userchip { width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); font: 700 14px var(--body); cursor: pointer; flex: none; }
 .login { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 20px 16px; overflow-y: auto; }
 .loginbox { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; }
@@ -322,7 +323,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v23</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v25</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -429,6 +430,10 @@ input[type="date"], select { font-size: 16px; }
         <p class="note">La inclinación de la cámara la mide el sensor del teléfono; la altura y la distancia quedan guardadas con tus datos para ajustar los consejos y el análisis.</p>
         <div class="setting"><span>Validar postura<small>No cuenta si la postura no corresponde al ejercicio</small></span><select id="set-checkpost"><option value="1">Sí</option><option value="0">No</option></select></div>
         <div class="setting"><span>Exigencia de recorrido<small>Cuánto debe bajar o estirar cada rep para no recibir aviso</small></span><select id="set-romstrict"><option value="strict">Estricta</option><option value="normal">Normal</option><option value="soft">Suave</option></select></div>
+        <div class="setting"><span>Cómo empieza la serie<small>Por ritmo: cuenta cuando ve repeticiones seguidas y descarta movimientos sueltos. Con tu voz: solo después de tu palabra.</small></span><select id="set-startmode"><option value="rhythm">Automático por ritmo</option><option value="voice">Con tu voz</option><option value="button">Con el botón</option><option value="auto">Por posición (antiguo)</option></select></div>
+        <div class="setting"><span>Palabras para empezar<small>Separadas por coma</small></span><input type="text" id="set-startwords" style="font-size:16px" autocomplete="off"></div>
+        <div class="setting"><span>Palabras para terminar<small>Cierra la serie al decirlas (opcional)</small></span><input type="text" id="set-stopwords" style="font-size:16px" autocomplete="off"></div>
+        <p class="note" id="voice-note">El reconocimiento de voz de Chrome necesita internet. Mientras la app habla, no escucha (para no activarse con su propia voz).</p>
         <div class="setting"><span>Motor de conteo<small>Automático: usa varias señales (codo, muñeca, cadera…) y cuenta por consenso</small></span><select id="set-engine"><option value="consensus">Automático (consenso)</option><option value="leader">Automático (mejor señal)</option><option value="classic">Clásico (un ángulo)</option></select></div>
         <p class="note" id="calib-info">—</p>
         <div class="row"><button class="btn primary small" id="btn-calib">Calibrar posturas (1 min)</button><button class="btn ghost small" id="btn-calibclear">Borrar calibración</button></div>
@@ -510,6 +515,7 @@ input[type="date"], select { font-size: 16px; }
       <label class="f">Reps serie anterior<input id="cam-lastreps" type="number" inputmode="numeric" min="0" disabled></label>
       <div class="chips" id="cam-rir" aria-label="RIR de la última serie"></div>
     </div>
+    <span class="micbadge" id="cam-mic" hidden>🎙 escuchando</span>
     <button class="btn ghost" id="cam-arm" style="width:100%">Estoy en posición · empezar a contar</button>
     <div class="ctlrow">
       <button class="btn ghost" id="cam-minus" aria-label="Restar una repetición">−1</button>
@@ -682,9 +688,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js?v=23"></script>
-<script src="core.js?v=23"></script>
-<script src="library.js?v=23"></script>
+<script src="config.js?v=25"></script>
+<script src="core.js?v=25"></script>
+<script src="library.js?v=25"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -695,7 +701,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const KEY = 'repcam.v1';
 function defaults() {
   return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {}, romRef: {}, romRefS: {}, plates: null, bars: null, postureProfile: null,
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0, rotMode: 'auto', camHeight: 1.7, camDist: 3, checkPosture: true, romStrict: 'normal', engine: 'consensus', voiceVol: 1, voiceRate: 1.15, beepVol: 'high', repBeep: true },
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0, rotMode: 'auto', camHeight: 1.7, camDist: 3, checkPosture: false, romStrict: 'normal', engine: 'consensus', voiceVol: 1, voiceRate: 1.15, beepVol: 'high', repBeep: true, startMode: 'rhythm', startWords: 'listo, vamos, empezar, go', stopWords: 'terminé, fin' },
     profile: { bw: null, height: null, age: null, level: 'intermedio' }, bwLog: [], order: {} };
 }
 // ---------- personas: cada una con sus datos, plan y ajustes por separado ----------
@@ -726,6 +732,8 @@ function readUser(id) {
   try { const raw = localStorage.getItem(dataKey(id)); if (raw) d = Object.assign(defaults(), JSON.parse(raw)); } catch (e) {}
   d.settings = Object.assign(defaults().settings, d.settings); d.profile = Object.assign(defaults().profile, d.profile);
   d.bwLog = d.bwLog || []; d.order = d.order || {}; d.logs = d.logs || [];
+  // v25: el inicio "por ritmo" reemplaza al automático por postura (que fallaba con la cámara alta)
+  if (!d.settings.v25) { if (d.settings.startMode === 'auto' || !d.settings.startMode) d.settings.startMode = 'rhythm'; d.settings.checkPosture = false; d.settings.v25 = true; }
   if (!d.plan) d.plan = id === 'u1' ? JSON.parse(JSON.stringify(C.DEFAULT_PLAN)) : RepLib.fromTemplate('fullbody3', d.profile.equip || Object.keys(RepLib.EQUIP));
   if (!d.profile.equip) d.profile.equip = id === 'u1' ? ['barra', 'rack', 'banco', 'mancuernas', 'polea', 'smith', 'banda', 'landmine', 'barra_dominadas'] : Object.keys(RepLib.EQUIP);
   return d;
@@ -1169,7 +1177,7 @@ function setupTip(ex) {
 }
 function introSay(ex) {
   const n = C.plannedSets(ex, S.overrides, weekNow()), done = logsToday(ex.id).length;
-  return ex.name + '. ' + (done ? 'Llevas ' + numWord(done) + ' de ' + seriesWord(n) + '.' : seriesWord(n) + ' de ' + ex.repsText.replace('–', ' a ') + '.') + ' ' + voiceTip(ex) + ' Ponte en posición de inicio.';
+  return ex.name + '. ' + (done ? 'Llevas ' + numWord(done) + ' de ' + seriesWord(n) + '.' : seriesWord(n) + ' de ' + ex.repsText.replace('–', ' a ') + '.') + ' ' + voiceTip(ex) + (S.settings.startMode === 'voice' && SpeechRec ? ' Ponte en posición y di ' + startWords()[0] + '.' : rhythmMode() ? ' Empieza cuando quieras.' : ' Ponte en posición de inicio.');
 }
 async function openCam(ex, guided, queue, opts) {
   opts = opts || {};
@@ -1183,7 +1191,7 @@ async function openCam(ex, guided, queue, opts) {
   setupExercise(ex);
   $('#cam').hidden = false; document.body.classList.add('cam-open');
   try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
-  startMotion();
+  startMotion(); listenStart();
   if (guided) {
     const d = C.DAYS.find((x) => x.key === ex.day), left = (queue || []).length;
     say('Entrenamiento de ' + d.name.toLowerCase() + ', ' + d.session.split(' ·')[0] + '. ' + numWord(left) + ' ejercicios. Empezamos con ' + introSay(ex), true);
@@ -1292,7 +1300,7 @@ function sensorLoop() {
   tick(now);
 }
 function closeCam() {
-  cancelAnimationFrame(camRaf); camRaf = null; stopStream(); stopMotion(); cam.lastOut = null;
+  cancelAnimationFrame(camRaf); camRaf = null; stopStream(); stopMotion(); stopListening(); cam.lastOut = null;
   if ($('#cam').classList.contains('clean') || document.fullscreenElement) tvMode(false);
   if (cam.calib) { cam.calib = null; renderCalibInfo(); }
   try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
@@ -1343,6 +1351,8 @@ function newCounter(ex) {
   const SL = { strict: 0, normal: 1, soft: 2 }[S.settings.romStrict] ?? 1, RT = { strict: 0.15, normal: 0.25, soft: 0.35 }[S.settings.romStrict] ?? 0.25;
   const rc = new C.RepCounter(ex, { romSlack: SL, relTol: RT, typicalRange: S.rom[ex.id], romRef: S.romRef[ex.id], template: S.poses[ex.id], tolerance: TOL[S.settings.posture] || 1, always: S.settings.countMode === 'always', multi: S.settings.engine !== 'classic', use3dRom: ex.rom3d !== false, bankMode: S.settings.engine === 'leader' ? 'leader' : 'consensus' });
   if (!S.settings.checkPosture) rc.expected = null;   // validación de postura desactivada
+  rc.manualOnly = S.settings.startMode === 'voice' || S.settings.startMode === 'button';
+  if (S.settings.startMode === 'rhythm') { rc.always = true; rc.expected = null; rc.template = null; }   // siempre mirando; la serie la define el ritmo
   return rc;
 }
 function curReps() { return Math.max(0, (cam.counter ? cam.counter.count() : 0) + cam.adj); }
@@ -1522,7 +1532,12 @@ $('#cam-rot').onclick = () => {
   if (cam.counter) cam.counter.template = null;
   toast('Giro manual ' + S.settings.rot + '°. Para volver al automático: Ajustes → Orientación');
 };
+// modo por ritmo: mínimo de reps para que algo cuente como serie (lo demás eran movimientos sueltos)
+const rhythmMode = () => S.settings.startMode === 'rhythm' && S.settings.mode !== 'sensor';
+const rhythmMin = (ex) => Math.max(6, Math.round((ex.repMin || 6) * 0.6));
 function tick(now) {
+  // por ritmo: 1–2 movimientos sueltos fuera de una serie se olvidan a los 4 s
+  if (rhythmMode() && cam.phase !== 'set' && cam.counter && cam.counter.count() > 0 && now - (cam.counter.lastRepT() || now) > 4000) { cam.counter = newCounter(cam.ex); $('#cam-reps').textContent = 0; }
   // fin automático de serie
   if (cam.phase === 'set') {
     const last = Math.max(cam.counter.lastRepT() || 0, cam.manualT || 0);
@@ -1538,6 +1553,8 @@ function gateMsg(out) {
     if (!C.PATTERN_PLACE[cam.ex.pattern]) return 'Cuenta con +1 / −1';
     return cam.counter.paused ? 'Descansando · cuenta al final del descanso' : 'Quédate quieto en la posición de inicio';
   }
+  if (rhythmMode()) return 'Ponte frente a la cámara: no te veo completo';
+  if (out.reason === 'voice') return S.settings.startMode === 'voice' && SpeechRec ? 'Di "' + startWords()[0] + '" para empezar' : 'Toca "Estoy en posición" para empezar';
   if (out.reason === 'camera') return 'Ajusta la cámara: no veo ' + C.JOINT_HELP[cam.ex.metric];
   if (out.reason === 'wrongPosture') {
     const P = cam.counter.postureNow, E = C.EXPECTED[cam.ex.id] || [];
@@ -1548,6 +1565,7 @@ function gateMsg(out) {
 }
 function onArmed(now, manual) {
   cam.gateState = 'armed'; setStatus(null);
+  if (rhythmMode() && !manual) return;   // por ritmo no hay "posición": cuenta cuando empiezas
   const first = S.settings.mode !== 'sensor' && !cam.counter.template;
   if (cam.phase === 'set') say('Listo', true);
   else if (manual || cam.phase === 'wait' || restOver(now)) {
@@ -1607,8 +1625,9 @@ const ROMCUE = {
 function onRep(now, out) {
   if (cam.nextEx || cam.phase === 'done') return;   // en la transición entre ejercicios no se cuenta
   REC.ev('rep', cam.counter.count());
-  if (cam.phase !== 'set') beginSet(now);
   const n = curReps(); $('#cam-reps').textContent = n;
+  // por ritmo: la serie empieza (y se anuncia) recién a la 3ª rep seguida
+  if (cam.phase !== 'set') { if (rhythmMode() && n < 3) return; beginSet(now); }
   if (navigator.vibrate) navigator.vibrate(20);
   if (S.settings.repBeep) beep(1046, 0.08);
   let cue = '';
@@ -1637,8 +1656,11 @@ function endSet(auto) {
   // el descanso parte en la última rep real (no al soltar la barra)
   if (fix > 0 && rt && rt.length) { const tl = rt[rt.length - 1] + ((st && st.tempo) || 1.5) * 500; if (tl < last) last = tl; }
   const romShort = cam.romMiss || 0;
-  if (reps === 0 || (auto && reps < S.settings.minReps)) {
-    cam.counter.reset(); cam.adj = 0; cam.manualT = null;
+  const minR = rhythmMode() ? Math.max(S.settings.minReps, rhythmMin(cam.ex)) : S.settings.minReps;
+  if (reps === 0 || (auto && reps < minR)) {
+    if (reps) REC.ev('discard', reps);
+    if (reps >= 3 && rhythmMode()) say('No la guardo: ' + repsWord(reps) + ' es muy poco para una serie. Si era una serie corta, al terminarla toca Terminar serie.', true);
+    cam.counter = newCounter(cam.ex); cam.adj = 0; cam.manualT = null; cam.pendingRest = null; cam.searchSince = now; cam.hintT = now;
     cam.phase = cam.restStart != null ? 'rest' : 'wait'; if (cam.phase === 'rest') $('#rest').hidden = false;
     updateHud(); return;
   }
@@ -1710,12 +1732,49 @@ function tickRest(now) {
     cam.restBeeped = true; restAlarm();
     const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
     const ready = cam.counter.state === 'armed';
-    say((done < pl ? '¡Vamos! Serie ' + numWord(done + 1) + '.' : '¡Vamos!') + (ready ? '' : ' Ponte en posición de inicio.'), true);
+    say((done < pl ? '¡Vamos! Serie ' + numWord(done + 1) + '.' : '¡Vamos!') + (ready ? '' : S.settings.startMode === 'voice' && SpeechRec ? ' Di ' + startWords()[0] + ' cuando estés en posición.' : ' Ponte en posición de inicio.'), true);
     cam.hintT = now;
   }
 }
 function restWords(s) { const m = Math.floor(s / 60), r = s % 60; if (!m) return numWord(r) + ' segundos'; return (m === 1 ? 'un minuto' : numWord(m) + ' minutos') + (r === 30 ? ' y medio' : r ? ' y ' + numWord(r) + ' segundos' : ''); }
 function fmtClock(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+// ---------- empezar con la voz ----------
+// Escucha una palabra (configurable) para empezar a contar y, opcionalmente, otra para terminar la serie.
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let srec = null, recWanted = false, lastSpeechEnd = 0, recFails = 0;
+const normWord = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ ]/g, ' ').replace(/\s+/g, ' ').trim();
+const wordsOf = (str) => String(str || '').split(',').map(normWord).filter(Boolean);
+const startWords = () => { const w = wordsOf(S.settings.startWords); return w.length ? w : ['listo']; };
+const hasWord = (text, list) => { const t = ' ' + normWord(text) + ' '; return list.some((w) => t.includes(' ' + w + ' ')); };
+function listenStart() {
+  if (!SpeechRec || S.settings.startMode !== 'voice' || $('#cam').hidden) return;
+  recWanted = true; if (srec) return;
+  try {
+    srec = new SpeechRec(); srec.lang = 'es-CL'; srec.continuous = true; srec.interimResults = true; srec.maxAlternatives = 3;
+    srec.onresult = (e) => {
+      const now = performance.now();
+      if (speechSynthesis.speaking || now - lastSpeechEnd < 900) return;   // es la voz de la app
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const alts = [...e.results[i]].map((a) => a.transcript).join(' ');
+        if (cam.counter && cam.counter.state !== 'armed' && !cam.nextEx && cam.phase !== 'done' && hasWord(alts, startWords())) {
+          if (cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); REC.ev('voiceArm', normWord(alts)); }
+          return;
+        }
+        const stops = wordsOf(S.settings.stopWords);
+        if (stops.length && cam.phase === 'set' && curReps() > 0 && e.results[i].isFinal && hasWord(alts, stops)) { REC.ev('voiceStop'); endSet(false); return; }
+      }
+    };
+    srec.onend = () => { srec = null; if (recWanted && !$('#cam').hidden) setTimeout(listenStart, recFails > 3 ? 2000 : 250); };
+    srec.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { recWanted = false; toast('Permite el micrófono para empezar con la voz'); }
+      else if (e.error === 'network') { recFails++; if (recFails === 3) toast('Sin internet: el reconocimiento de voz no funciona. Usa el botón.'); }
+    };
+    srec.onstart = () => { recFails = 0; $('#cam-mic').hidden = false; };
+    srec.start();
+  } catch (e) { srec = null; }
+}
+function stopListening() { recWanted = false; $('#cam-mic').hidden = true; try { srec && srec.abort(); } catch (e) {} srec = null; }
+
 // ---------- voz ----------
 let esVoice = null;
 function pickVoice() {
@@ -1730,6 +1789,7 @@ function say(text, interrupt) {
     if (interrupt) speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text); u.lang = esVoice ? esVoice.lang : 'es-ES'; if (esVoice) u.voice = esVoice;
     u.rate = S.settings.voiceRate || 1.15; u.volume = S.settings.voiceVol ?? 1; u.pitch = 1.05;
+    u.onend = u.onerror = () => { lastSpeechEnd = performance.now(); };
     speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -1890,7 +1950,7 @@ function setClMode(m) {
 }
 async function startCloud() {
   showCloudLogin('Conectando con el servidor…', true);
-  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=23'); Cloud.init(CFG.firebase); }
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=25'); Cloud.init(CFG.firebase); }
   catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
   Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
 }
@@ -2423,6 +2483,7 @@ function loadSettings() {
   $('#set-record').value = S.settings.record ? '1' : '0'; $('#set-countmode').value = S.settings.countMode;
   $('#set-romvoice').value = S.settings.romVoice ? '1' : '0'; $('#set-rotmode').value = S.settings.rotMode || 'auto';
   $('#set-camh').value = S.settings.camHeight; $('#set-camd').value = S.settings.camDist;
+  $('#set-startmode').value = S.settings.startMode || 'auto'; $('#set-startwords').value = S.settings.startWords || ''; $('#set-stopwords').value = S.settings.stopWords || '';
   $('#set-voicevol').value = String(S.settings.voiceVol ?? 1); $('#set-voicerate').value = String(S.settings.voiceRate || 1.15);
   $('#set-beepvol').value = S.settings.beepVol || 'high'; $('#set-repbeep').value = S.settings.repBeep ? '1' : '0';
   const cu = curUser(); $('#pf-name').value = cu.name; $('#pf-lock').value = cu.lock || 'none';
@@ -2516,6 +2577,9 @@ $('#btn-calibclear').onclick = () => { S.postureProfile = null; save(); renderCa
 $('#set-rotmode').onchange = (e) => { S.settings.rotMode = e.target.value; save(); };
 $('#set-romvoice').onchange = (e) => { S.settings.romVoice = e.target.value === '1'; save(); };
 $('#set-voicevol').onchange = (e) => { S.settings.voiceVol = +e.target.value; save(); };
+$('#set-startmode').onchange = (e) => { S.settings.startMode = e.target.value; save(); if (e.target.value === 'voice' && !SpeechRec) toast('Este navegador no reconoce voz: usa el botón'); };
+$('#set-startwords').onchange = (e) => { S.settings.startWords = e.target.value; save(); };
+$('#set-stopwords').onchange = (e) => { S.settings.stopWords = e.target.value; save(); };
 $('#set-voicerate').onchange = (e) => { S.settings.voiceRate = +e.target.value; save(); };
 $('#set-beepvol').onchange = (e) => { S.settings.beepVol = e.target.value; save(); };
 $('#set-repbeep').onchange = (e) => { S.settings.repBeep = e.target.value === '1'; save(); };
@@ -2642,7 +2706,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 23;
+const APP_VER = 25;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
