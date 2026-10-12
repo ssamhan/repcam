@@ -55,10 +55,10 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01e
 .weekchip b { color: var(--fg); font-weight: 600; }
 .weekchip .dl { color: var(--warn); font-weight: 600; }
 
-.days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .day { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 0; text-align: center; cursor: pointer; }
 .day b { display: block; font-family: var(--display); font-size: 20px; }
-.day span { font-size: 11px; color: var(--muted); }
+.day span { font-size: 10px; color: var(--muted); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
 .day[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .day[aria-pressed="true"] span { color: inherit; opacity: .8; }
 .day.today:not([aria-pressed="true"]) { border-color: var(--accent); }
@@ -76,6 +76,9 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01e
 .ordrow .iconbtn.sm:disabled { opacity: .3; }
 #rest-other { margin-top: 6px; }
 .session p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.day.dayoff b { opacity: .55; } .day.dayoff span { font-style: italic; }
+.pday.restd h3 em { font-style: normal; font-size: 14px; color: var(--muted); font-weight: 600; }
+.freecard { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
 .restday { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); padding: 14px 16px; color: var(--muted); font-size: 15px; }
 
 .list { display: flex; flex-direction: column; gap: 8px; }
@@ -190,6 +193,8 @@ input[type="date"], select { font-size: 16px; }
 .pitem button, .pday .x { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer; font-size: 16px; }
 .pitem button:disabled { opacity: .3; }
 .liblist { display: flex; flex-direction: column; gap: 6px; }
+.facheck { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 15px; }
+.facheck input { width: 22px; height: 22px; } .facheck small { display: block; color: var(--muted); font-size: 13px; }
 .librow { display: flex; flex-direction: column; gap: 2px; text-align: left; background: var(--surface-2); border: 0; border-radius: 10px; padding: 10px 12px; cursor: pointer; color: var(--fg); font: 600 15px var(--body); }
 .librow small { font-weight: 400; font-size: 12px; color: var(--muted); }
 .librow.off { opacity: .55; }
@@ -323,7 +328,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v25</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v26</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -340,6 +345,7 @@ input[type="date"], select { font-size: 16px; }
       <p class="note" id="start-note"></p>
     </div>
     <div class="list" id="exlist"></div>
+    <div class="freecard"><button class="btn ghost" id="btn-free">+ Entrenamiento libre</button><p class="note">Haz el ejercicio que quieras, aunque no esté en el plan: la cámara reconoce qué es y cuenta las repeticiones. Al terminar puedes sumarlo a tu plan.</p></div>
   </section>
 
   <section id="view-plan" hidden>
@@ -407,6 +413,7 @@ input[type="date"], select { font-size: 16px; }
         <div class="setting"><span>Aviso previo<small>Segundos antes de terminar el descanso</small></span><select id="set-prewarn"><option value="0">Sin aviso</option><option>5</option><option>10</option><option>15</option><option>20</option></select></div>
         <div class="setting"><span>Pitido y vibración<small>Al terminar el descanso</small></span><select id="set-sound"><option value="1">Activado</option><option value="0">Desactivado</option></select></div>
         <div class="setting"><span>Volumen de la voz<small>Relativo al volumen multimedia del teléfono</small></span><select id="set-voicevol"><option value="1">100 %</option><option value="0.8">80 %</option><option value="0.6">60 %</option></select></div>
+        <div class="setting"><span>Ánimo en las últimas reps<small>Si notas que vas más lento, te alienta por voz</small></span><select id="set-encourage"><option value="soft">Suave</option><option value="hard">Intenso (modo sargento)</option><option value="off">Sin ánimo</option></select></div>
         <div class="setting"><span>Velocidad de la voz</span><select id="set-voicerate"><option value="0.95">Pausada</option><option value="1.15">Normal</option><option value="1.3">Rápida</option></select></div>
         <div class="setting"><span>Volumen de los pitidos<small>"Máximo" se oye sobre la música</small></span><select id="set-beepvol"><option value="normal">Normal</option><option value="high">Alto</option><option value="max">Máximo</option></select></div>
         <div class="setting"><span>Pitido en cada rep<small>Además de la voz; se distingue mejor con música</small></span><select id="set-repbeep"><option value="1">Sí</option><option value="0">No</option></select></div>
@@ -430,7 +437,7 @@ input[type="date"], select { font-size: 16px; }
         <p class="note">La inclinación de la cámara la mide el sensor del teléfono; la altura y la distancia quedan guardadas con tus datos para ajustar los consejos y el análisis.</p>
         <div class="setting"><span>Validar postura<small>No cuenta si la postura no corresponde al ejercicio</small></span><select id="set-checkpost"><option value="1">Sí</option><option value="0">No</option></select></div>
         <div class="setting"><span>Exigencia de recorrido<small>Cuánto debe bajar o estirar cada rep para no recibir aviso</small></span><select id="set-romstrict"><option value="strict">Estricta</option><option value="normal">Normal</option><option value="soft">Suave</option></select></div>
-        <div class="setting"><span>Cómo empieza la serie<small>Por ritmo: cuenta cuando ve repeticiones seguidas y descarta movimientos sueltos. Con tu voz: solo después de tu palabra.</small></span><select id="set-startmode"><option value="rhythm">Automático por ritmo</option><option value="voice">Con tu voz</option><option value="button">Con el botón</option><option value="auto">Por posición (antiguo)</option></select></div>
+        <div class="setting"><span>Cómo empieza la serie<small>Por ritmo: cuenta cuando ve repeticiones seguidas y descarta movimientos sueltos. Con tu voz: cuenta solo después de tu palabra para empezar y cierra la serie cuando dices la de terminar.</small></span><select id="set-startmode"><option value="rhythm">Automático por ritmo</option><option value="voice">Con tu voz</option><option value="button">Con el botón</option><option value="auto">Por posición (antiguo)</option></select></div>
         <div class="setting"><span>Palabras para empezar<small>Separadas por coma</small></span><input type="text" id="set-startwords" style="font-size:16px" autocomplete="off"></div>
         <div class="setting"><span>Palabras para terminar<small>Cierra la serie al decirlas (opcional)</small></span><input type="text" id="set-stopwords" style="font-size:16px" autocomplete="off"></div>
         <p class="note" id="voice-note">El reconocimiento de voz de Chrome necesita internet. Mientras la app habla, no escucha (para no activarse con su propia voz).</p>
@@ -489,6 +496,7 @@ input[type="date"], select { font-size: 16px; }
       <span class="qual" id="cam-qual">Buscando…</span>
       <button class="iconbtn" id="cam-voice" aria-label="Voz" aria-pressed="true" style="width:36px;height:36px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
       <button class="skipex" id="cam-skipex" hidden>Saltar ejercicio ›</button>
+      <button class="skipex" id="cam-freeex" hidden>¿Qué ejercicio? ▾</button>
       <button class="skipex" id="cam-clean" aria-pressed="false">Modo TV</button>
       <button class="skipex" id="cam-rot">Girar imagen</button>
       <span class="qual" id="cam-post" hidden></span>
@@ -656,6 +664,28 @@ input[type="date"], select { font-size: 16px; }
   </div>
 </div>
 
+<!-- entrenamiento libre: elegir el ejercicio -->
+<div class="modal" id="freepick" hidden>
+  <div class="box tall" role="dialog" aria-modal="true" aria-labelledby="fp-title">
+    <h3 id="fp-title">¿Qué ejercicio estás haciendo?</h3>
+    <p class="note" id="fp-note">Ordenados por parecido con tu movimiento. Lo que elijas lo aprendo para la próxima vez.</p>
+    <div class="liblist" id="fp-list"></div>
+    <input type="search" id="fp-q" placeholder="Buscar otro ejercicio…" style="font-size:16px" autocomplete="off">
+    <div class="liblist" id="fp-search"></div>
+    <div class="row"><button class="btn ghost" id="fp-cancel">Cerrar</button></div>
+  </div>
+</div>
+<!-- entrenamiento libre: sumarlo al plan -->
+<div class="modal" id="freeadd" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="fa-title">
+    <h3 id="fa-title">¿Lo sumas a tu plan?</h3>
+    <p class="note">Las series ya quedaron guardadas en tu historial. Si quieres repetir estos ejercicios, agrégalos a un día de tu plan.</p>
+    <div class="liblist" id="fa-list"></div>
+    <div class="setting"><span>Día del plan</span><select id="fa-day"></select></div>
+    <div class="row"><button class="btn primary" id="fa-add">Agregar al plan</button><button class="btn ghost" id="fa-no">Solo dejar registrado</button></div>
+  </div>
+</div>
+
 <!-- resumen del día -->
 <div class="modal" id="summary" hidden>
   <div class="box tall" role="dialog" aria-modal="true" aria-labelledby="sm-title">
@@ -688,9 +718,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js?v=25"></script>
-<script src="core.js?v=25"></script>
-<script src="library.js?v=25"></script>
+<script src="config.js?v=26"></script>
+<script src="core.js?v=26"></script>
+<script src="library.js?v=26"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -701,7 +731,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const KEY = 'repcam.v1';
 function defaults() {
   return { startDate: C.ymd(C.mondayOf(new Date())), logs: [], overrides: {}, rom: {}, poses: {}, romS: {}, romRef: {}, romRefS: {}, plates: null, bars: null, postureProfile: null,
-    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0, rotMode: 'auto', camHeight: 1.7, camDist: 3, checkPosture: false, romStrict: 'normal', engine: 'consensus', voiceVol: 1, voiceRate: 1.15, beepVol: 'high', repBeep: true, startMode: 'rhythm', startWords: 'listo, vamos, empezar, go', stopWords: 'terminé, fin' },
+    settings: { autoEnd: 8, minReps: 2, facing: 'environment', sound: true, voice: true, prewarn: 10, model: 'full', zoom: null, posture: 'normal', debug: false, record: true, countMode: 'pose', mode: 'camera', camId: null, romVoice: true, rot: 0, rotMode: 'auto', camHeight: 1.7, camDist: 3, checkPosture: false, romStrict: 'normal', engine: 'consensus', voiceVol: 1, voiceRate: 1.15, beepVol: 'high', repBeep: true, startMode: 'rhythm', startWords: 'listo, vamos, empezar, go', stopWords: 'terminé, fin', encourage: 'soft' },
     profile: { bw: null, height: null, age: null, level: 'intermedio' }, bwLog: [], order: {} };
 }
 // ---------- personas: cada una con sus datos, plan y ajustes por separado ----------
@@ -741,11 +771,11 @@ function readUser(id) {
 // plan de la persona → formato del contador
 function applyPlan() {
   C.setPlan({ name: S.plan.name, days: S.plan.days.map((d) => ({ key: d.key, name: d.name || RepLib.DAY_NAMES[d.key], session: d.session || '', items: d.items.map((it) => RepLib.resolve(it, d.key)) })) });
-  if (!C.DAYS.some((d) => d.key === selDay)) selDay = C.dayKeyOf(new Date()) || (C.DAYS[0] && C.DAYS[0].key) || 'L';
+  if (!selDay || WEEK7.indexOf(selDay) < 0) selDay = todayKey();
 }
 function enterUser(id) {
   U.cur = id; saveUsers(); try { sessionStorage.setItem('repcam.unlocked', id); if (isAdmin(curUser())) sessionStorage.setItem('repcam.adminAuth', id); } catch (e) {}
-  S = readUser(id); if (CLOUD_ON && cloudDoc && curUser().cloudUid) mergeCloud(); selDay = null; applyPlan(); selDay = C.dayKeyOf(new Date()) || (C.DAYS[0] && C.DAYS[0].key) || 'L';
+  S = readUser(id); if (CLOUD_ON && cloudDoc && curUser().cloudUid) mergeCloud(); selDay = null; applyPlan(); selDay = todayKey();
   REC.reset(); orderMode = false; $('#userchip').textContent = initials(curUser().name);
   loadSettings(); renderProfileNote(); refreshAll(); if (!$('#view-plan').hidden) renderPlan(); if (!$('#view-history').hidden) renderHistory();
   $('#login').hidden = true;
@@ -768,7 +798,9 @@ if (navigator.storage && navigator.storage.persist) navigator.storage.persist().
 
 const todayYmd = () => C.ymd(new Date());
 const weekNow = () => C.weekNumber(S.startDate, new Date());
-let selDay = C.dayKeyOf(new Date()) || 'L';
+const WEEK7 = 'LMXJVSD';
+const todayKey = () => 'DLMXJVS'[new Date().getDay()];   // día de la semana de hoy (aunque sea de descanso)
+let selDay = todayKey();
 // ejercicio por id: del plan actual o, si ya no está en el plan (cambiaste de plan), de la biblioteca o del plan original
 const exById = (id) => C.PLAN.find((e) => e.id === id) || (() => {
   const lib = String(id).split('@')[0]; if (RepLib.LIB[lib]) return RepLib.resolve({ lib, id }, String(id).split('@')[1] || 'L');
@@ -822,13 +854,29 @@ function renderWeek() {
   $('#weekchip').innerHTML = 'Semana <b class="num">' + cw + '/8</b>' + (C.isDeload(w) ? '<br><span class="dl">Descarga</span>' : '<br>' + new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'short' }));
 }
 function renderDays() {
-  const tk = C.dayKeyOf(new Date());
-  $('#days').style.gridTemplateColumns = 'repeat(' + Math.max(3, C.DAYS.length) + ', 1fr)';
-  $('#days').innerHTML = C.DAYS.map((d) => '<button class="day' + (d.key === tk ? ' today' : '') + '" data-day="' + d.key + '" aria-pressed="' + (d.key === selDay) + '"><b>' + d.name.slice(0, 2) + '</b><span>' + (d.key === tk ? 'hoy' : esc((d.session || '').split(' ')[0])) + '</span></button>').join('');
+  const tk = todayKey();
+  $('#days').style.gridTemplateColumns = '';
+  // toda la semana: los días sin entrenamiento quedan marcados como descanso
+  $('#days').innerHTML = WEEK7.split('').map((k) => {
+    const d = C.DAYS.find((x) => x.key === k), nm = RepLib.DAY_NAMES[k];
+    return '<button class="day' + (k === tk ? ' today' : '') + (d ? '' : ' dayoff') + '" data-day="' + k + '" aria-pressed="' + (k === selDay) + '"><b>' + nm.slice(0, 2) + '</b><span>' + (k === tk ? (d ? 'hoy' : 'hoy · desc.') : d ? esc((d.session || '').split(' ')[0] || 'entreno') : 'desc.') + '</span></button>';
+  }).join('');
+}
+function nextSessionText() {
+  const KEYS = ['D', 'L', 'M', 'X', 'J', 'V', 'S']; let nx = null; for (let i = 1; i <= 7 && !nx; i++) { const k = KEYS[(new Date().getDay() + i) % 7]; nx = C.DAYS.find((x) => x.key === k); }
+  return nx ? ' Próxima sesión: ' + nx.name + (nx.session ? ' · ' + esc(nx.session) : '') + '.' : '';
 }
 function renderToday() {
   renderWeek(); renderDays();
   const d = C.DAYS.find((x) => x.key === selDay);
+  if (!d) {
+    // día de descanso
+    orderMode = false;
+    $('#session').innerHTML = '<div class="sesshead"><div><h2>' + RepLib.DAY_NAMES[selDay] + ' · Descanso</h2><p>Sin entrenamiento en tu plan</p></div></div>';
+    $('#restnote').innerHTML = '<div class="restday">' + (selDay === todayKey() ? 'Hoy descansas. ' : '') + 'Recuperar también es parte del plan: el músculo crece en el descanso.' + nextSessionText() +
+      ' Si igual quieres moverte, usa <b>Entrenamiento libre</b> o agrega ejercicios a este día en Plan.</div><div style="height:12px"></div>';
+    renderStart(); $('#exlist').innerHTML = ''; return;
+  }
   const tk = C.dayKeyOf(new Date());
   const exs = dayExercises(selDay);
   const w = weekNow();
@@ -837,11 +885,7 @@ function renderToday() {
     '<button class="btn ghost small" id="btn-order" aria-pressed="' + !!orderMode + '">' + (orderMode ? 'Listo' : 'Cambiar orden') + '</button></div>';
   if (orderMode) { renderOrder(exs); return; }
   let note = '';
-  if (!tk) {
-    // próximo día de tu plan
-    const KEYS = ['D', 'L', 'M', 'X', 'J', 'V', 'S']; let nx = null; for (let i = 1; i <= 7 && !nx; i++) { const k = KEYS[(new Date().getDay() + i) % 7]; nx = C.DAYS.find((x) => x.key === k); }
-    note = '<div class="restday">Hoy descansas.' + (nx ? ' Próxima sesión: ' + nx.name + (nx.session ? ' · ' + esc(nx.session) : '') + '.' : '') + ' Puedes revisar cualquier día arriba.</div><div style="height:12px"></div>';
-  }
+  if (!tk) note = '<div class="restday">Hoy es día de descanso. Estás viendo el ' + d.name.toLowerCase() + ': si entrenas igual, las series se guardan con la fecha de hoy.</div><div style="height:12px"></div>';
   else if (tk !== selDay) note = '<div class="restday">Estás viendo el ' + d.name.toLowerCase() + '. Las series se guardan con la fecha de hoy.</div><div style="height:12px"></div>';
   $('#restnote').innerHTML = note;
   renderStart();
@@ -874,8 +918,8 @@ function renderStart() {
   document.querySelectorAll('.seg [data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === S.settings.mode)));
   const exs = dayExercises(selDay), w = weekNow();
   const left = exs.filter((e) => logsToday(e.id).length < C.plannedSets(e, S.overrides, w));
-  $('#btn-start').disabled = !left.length;
-  $('#btn-start').textContent = !left.length ? 'Entrenamiento de hoy completo' : (left.length < exs.length ? 'Continuar entrenamiento guiado' : 'Comenzar entrenamiento guiado');
+  $('#btn-start').disabled = !left.length; $('#btn-start').hidden = !exs.length; $('#start-note').hidden = !exs.length;
+  $('#btn-start').textContent = !exs.length ? 'Día de descanso' : !left.length ? 'Entrenamiento de hoy completo' : (left.length < exs.length ? 'Continuar entrenamiento guiado' : 'Comenzar entrenamiento guiado');
   $('#start-note').textContent = S.settings.mode === 'sensor'
     ? 'Llevas el teléfono puesto (brazalete o banda). La voz te dice dónde ponerlo en cada ejercicio y cuenta por el giro del brazo o la pierna.'
     : 'El teléfono va fijo en un trípode o apoyado. La app pasa sola de un ejercicio al siguiente y te avisa qué preparar.';
@@ -1060,6 +1104,7 @@ function renderEx() {
 function setPlanned(e, n) { if (n === e.sets) delete S.overrides[e.id]; else S.overrides[e.id] = n; save(); renderEx(); }
 function fmtRest(s) { s = Math.round(s); return s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : s + ' s'; }
 function camTip(e) {
+  if (e.free) return 'Entrenamiento libre: deja el teléfono fijo y que se vea tu cuerpo entero. A la 4ª repetición te digo qué ejercicio reconocí; toca el nombre arriba si me equivoco.';
   const front = ['fly', 'raise', 'pull'].includes(e.pattern);
   const map = { calf: 'Conteo con cámara experimental: pon el teléfono bajo, de lado, enfocando los pies.', legcurl: 'Teléfono de lado, a la altura del banco.', lunge: 'Teléfono de lado; se cuenta con la rodilla que más se dobla.' };
   return map[e.pattern] || ('Teléfono ' + (front ? 'de frente' : 'de lado') + '. No hace falta el cuerpo entero: acércalo o usa el zoom hasta que se vean bien ' + C.JOINT_HELP[e.metric] + '.');
@@ -1163,6 +1208,8 @@ function setupExercise(ex) {
   rirChips($('#cam-rir'), null, () => {}); $('#cam-rir').style.visibility = 'hidden';
   $('#cam-qual').className = 'qual'; $('#cam-qual').textContent = 'Buscando…'; $('#cam-arm').hidden = false;
   $('#cam-skipex').hidden = !cam.guided;
+  cam.sig = new C.MoveSig(); cam.repTs = []; cam.lastSig = null;
+  $('#cam-freeex').hidden = !cam.free; if (cam.free) freeLabel();
   updateHud();
 }
 // versión corta para la voz
@@ -1176,11 +1223,13 @@ function setupTip(ex) {
   return camTip(ex);
 }
 function introSay(ex) {
+  if (ex.free) return 'Entrenamiento libre. Haz el ejercicio que quieras: lo reconozco y cuento las repeticiones.' + (voiceMode() ? ' Di ' + startWords()[0] + ' para empezar cada serie.' : ' Empieza cuando quieras.');
   const n = C.plannedSets(ex, S.overrides, weekNow()), done = logsToday(ex.id).length;
   return ex.name + '. ' + (done ? 'Llevas ' + numWord(done) + ' de ' + seriesWord(n) + '.' : seriesWord(n) + ' de ' + ex.repsText.replace('–', ' a ') + '.') + ' ' + voiceTip(ex) + (S.settings.startMode === 'voice' && SpeechRec ? ' Ponte en posición y di ' + startWords()[0] + '.' : rhythmMode() ? ' Empieza cuando quieras.' : ' Ponte en posición de inicio.');
 }
 async function openCam(ex, guided, queue, opts) {
   opts = opts || {};
+  if (!ex.free) cam.free = null;
   const sensor = S.settings.mode === 'sensor';
   if (!window.isSecureContext) { toast('La app necesita abrirse desde https'); return; }
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
@@ -1306,7 +1355,9 @@ function closeCam() {
   try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
   if (cam.phase === 'set' && curReps() > 0) endSet(false);
   REC.stop();
+  const fr = cam.free; cam.free = null; $('#cam-freeex').hidden = true;
   $('#cam').hidden = true; document.body.classList.remove('cam-open'); cam.ex = null; refreshAll();
+  if (fr && Object.keys(fr.done).length) openFreeAdd(fr);
 }
 $('#cam-close').onclick = closeCam;
 async function videoInputs() { try { return (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput'); } catch (e) { return []; } }
@@ -1363,6 +1414,11 @@ function updateHud() {
   const n = cam.phase === 'set' ? done + 1 : Math.min(done + 1, Math.max(pl, done + 1));
   $('#cam-set').textContent = (done >= pl && cam.phase !== 'set') ? 'Completo ' + done + '/' + pl : 'Serie ' + n + '/' + pl;
   $('#cam-sub').textContent = e.repsText + ' reps · RIR ' + e.rir + ' · descanso ' + fmtRest(e.rest);
+  if (cam.free) {
+    const fe = cam.free.ex, dn = fe ? logsToday(fe.id).length : 0;
+    $('#cam-set').textContent = fe ? 'Serie ' + (dn + (cam.phase === 'set' || !dn ? 1 : 0)) : 'Libre';
+    $('#cam-sub').textContent = fe ? fe.name + ' · descanso ' + fmtRest(fe.rest) : 'Reconozco el ejercicio a la 4ª repetición';
+  }
 }
 
 const BONES = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28], [27, 31], [28, 32], [27, 29], [28, 30]];
@@ -1493,6 +1549,7 @@ function loop() {
     if (cam.calib) { drawPose(raw, W, H, cam.needed); calibTick(now); tick(now); return; }
     const out = cam.counter.update(now, lmPx, q, W, H, post, cam.ctx3);
     if (out.visible) cam.lastVisible = now;
+    if (cam.sig && lmPx) cam.sig.push(now, lmPx);
 
     handleGate(out, now);
     REC.frame(now, raw, q, out.state, wl, lastMotion);
@@ -1534,15 +1591,21 @@ $('#cam-rot').onclick = () => {
 };
 // modo por ritmo: mínimo de reps para que algo cuente como serie (lo demás eran movimientos sueltos)
 const rhythmMode = () => S.settings.startMode === 'rhythm' && S.settings.mode !== 'sensor';
-const rhythmMin = (ex) => Math.max(6, Math.round((ex.repMin || 6) * 0.6));
+const rhythmMin = (ex) => (ex.free ? 5 : Math.max(6, Math.round((ex.repMin || 6) * 0.6)));   // libre: 5 seguidas ya es una serie
 function tick(now) {
   // por ritmo: 1–2 movimientos sueltos fuera de una serie se olvidan a los 4 s
-  if (rhythmMode() && cam.phase !== 'set' && cam.counter && cam.counter.count() > 0 && now - (cam.counter.lastRepT() || now) > 4000) { cam.counter = newCounter(cam.ex); $('#cam-reps').textContent = 0; }
+  if (rhythmMode() && cam.phase !== 'set' && cam.counter && cam.counter.count() > 0 && now - (cam.counter.lastRepT() || now) > 4000) { cam.counter = newCounter(cam.ex); cam.repTs = []; $('#cam-reps').textContent = 0; }
   // fin automático de serie
   if (cam.phase === 'set') {
     const last = Math.max(cam.counter.lastRepT() || 0, cam.manualT || 0);
     const idle = now - last, gone = S.settings.mode === 'sensor' ? 0 : now - cam.lastVisible;
-    if (idle > S.settings.autoEnd * 1000 || (gone > 6000 && idle > 3000)) endSet(true);
+    const stopW = String(S.settings.stopWords || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (voiceMode() && stopW.length) {
+      // con voz la serie termina cuando lo dices (o tocas Terminar serie); si se te olvida, te lo recuerdo
+      if (idle < 20000) cam.askedEnd = false;
+      else if (!cam.askedEnd) { cam.askedEnd = true; say('¿Terminaste? Di ' + stopW[0] + ' o toca Terminar serie.', true); }
+      if (idle > 90000) endSet(true);
+    } else if (idle > S.settings.autoEnd * 1000 || (gone > 6000 && idle > 3000)) endSet(true);
   }
   if (cam.phase === 'rest') tickRest(now);
 }
@@ -1567,7 +1630,7 @@ function onArmed(now, manual) {
   cam.gateState = 'armed'; setStatus(null);
   if (rhythmMode() && !manual) return;   // por ritmo no hay "posición": cuenta cuando empiezas
   const first = S.settings.mode !== 'sensor' && !cam.counter.template;
-  if (cam.phase === 'set') say('Listo', true);
+  if (cam.phase === 'set') say(voiceMode() ? 'Cuento' : 'Listo', true);
   else if (manual || cam.phase === 'wait' || restOver(now)) {
     if (manual || now - cam.armVoiceT > 6000) { cam.armVoiceT = now; say(first ? 'Posición guardada. Empieza.' : 'Posición correcta. Empieza.', true); }
   }
@@ -1622,20 +1685,51 @@ const ROMCUE = {
   legcurl: { deep: 'dobla más la rodilla', full: 'estira la pierna' }, legext: { deep: 'estira completo', full: 'baja completo' },
   calf: { deep: 'sube más los talones', full: 'baja completo los talones' }, crunch: { deep: 'enrolla más', full: 'vuelve arriba' },
 };
+// ---------- ánimo cuando las últimas reps se ponen lentas ----------
+const ENC = {
+  soft: ['¡Bien, sigue así!', '¡Tú puedes!', '¡Respira y sube!', '¡Muy bien, aguanta!', '¡Con calma, una más!', '¡Lo estás haciendo bien!', '¡Firme, ya casi!'],
+  hard: ['¡Arriba! ¡No se te ocurra parar!', '¡Empuja, empuja, empuja!', '¡Esto es lo que te hace crecer!', '¡Más fuerte! ¡Aquí mandas tú!', '¡Ni un paso atrás!', '¡Duele, pero sube igual!', '¡Saca la bestia!', '¡Aprieta los dientes y sube!'],
+};
+const ENC_LEFT = {
+  soft: (k) => '¡Te ' + (k === 1 ? 'falta una' : 'faltan ' + numWord(k)) + ', tú puedes!',
+  hard: (k) => (k === 1 ? '¡Una más!' : '¡' + numWord(k)[0].toUpperCase() + numWord(k).slice(1) + ' más!') + ' ¡No te atrevas a parar!',
+};
+function cheerWord() { return voiceMode() && startWords().includes('vamos') ? '¡Dale!' : '¡Vamos!'; }
+function encourageLine(n) {
+  const mode = S.settings.encourage || 'soft'; if (mode === 'off' || !ENC[mode]) return '';
+  const ts = cam.repTs || []; if (n < 5 || ts.length < 5) return '';
+  const iv = []; for (let i = 1; i < ts.length; i++) iv.push(ts[i] - ts[i - 1]);
+  const med = (a) => { const b = a.slice().sort((x, y) => x - y); return b[b.length >> 1]; };
+  const base = med(iv.slice(0, 3)), last = iv[iv.length - 1] / base, prev = iv[iv.length - 2] / base;
+  const left = ((cam.free && cam.free.ex ? cam.free.ex.repMin : cam.ex.repMin) || 8) - n;
+  // más lento que al empezar: la última un 30 % más lenta, o dos seguidas algo más lentas cerca del final
+  if (!(last > 1.3 || (left <= 2 && last > 1.15 && prev > 1.08))) return '';
+  if ((cam.encN || 0) >= 4 || (cam.encLastN != null && n - cam.encLastN < 2)) return '';
+  cam.encN = (cam.encN || 0) + 1; cam.encLastN = n;
+  // sin tus palabras de empezar/terminar (la app no debe darse órdenes a sí misma)
+  const avoid = wordsOf(S.settings.stopWords).concat(voiceMode() ? startWords() : []);
+  if (left >= 1 && left <= 3) { const l = ENC_LEFT[mode](left); if (!hasWord(l, avoid)) return l; }
+  const opts = ENC[mode].filter((x) => !hasWord(x, avoid));
+  return opts.length ? opts[Math.floor(Math.random() * opts.length)] : '';
+}
 function onRep(now, out) {
   if (cam.nextEx || cam.phase === 'done') return;   // en la transición entre ejercicios no se cuenta
   REC.ev('rep', cam.counter.count());
+  (cam.repTs || (cam.repTs = [])).push(now);
   const n = curReps(); $('#cam-reps').textContent = n;
+  if (cam.free && n === 4) freeIdentify(false);
   // por ritmo: la serie empieza (y se anuncia) recién a la 3ª rep seguida
   if (cam.phase !== 'set') { if (rhythmMode() && n < 3) return; beginSet(now); }
   if (navigator.vibrate) navigator.vibrate(20);
   if (S.settings.repBeep) beep(1046, 0.08);
   let cue = '';
-  if (out && out.rom && S.settings.romVoice) {
+  if (out && out.rom && S.settings.romVoice && !cam.free) {
     const c = ROMCUE[cam.ex.pattern]; cue = c ? c[out.rom] : '';
     cam.romMiss = (cam.romMiss || 0) + 1; REC.ev('rom', out.rom);
   }
-  say(numWord(n) + (cue ? ', ' + cue : n === cam.ex.repMax ? ', tope del rango' : ''), true);
+  const enc = cue ? '' : encourageLine(n);
+  if (enc) REC.ev('encourage', enc);
+  say(numWord(n) + (cue ? ', ' + cue : enc ? ', ' + enc : n === cam.ex.repMax ? ', tope del rango' : ''), true);
 }
 function beginSet(now) {
   if (cam.restStart != null) {
@@ -1645,6 +1739,9 @@ function beginSet(now) {
   cam.phase = 'set'; $('#rest').hidden = true; updateHud();
 }
 function endSet(auto) {
+  const repTs = cam.repTs || [];
+  if (cam.free && repTs.length >= 3) freeIdentify(true);
+  cam.repTs = []; cam.encN = 0; cam.encLastN = null; cam.askedEnd = false;
   const live = cam.counter.count();
   const fix = cam.counter.finalize ? (+cam.counter.finalize() || 0) : 0;   // >0: descartó reps (tomar/soltar la barra); <0: sumó
   if (fix) REC.ev('recount', { live, fix, info: cam.counter.recountInfo || null });
@@ -1667,17 +1764,25 @@ function endSet(auto) {
   const wv = $('#cam-weight').value;
   const extra = { romShort, live };
   if (st) { extra.tempo = st.tempo; extra.slow = st.slow; extra.rirEst = st.rirEst; }
-  const l = addLog(cam.ex, { weight: wv === '' ? null : +wv, reps, rir: null, restS: cam.pendingRest, auto: true, detected: cam.counter.count(), adj: cam.adj, recId: REC.id(), extra });
+  if (cam.free) { extra.free = true; if (!cam.free.ex) setFreeEx(fallbackFreeRef(), false); }
+  const logEx = cam.free ? cam.free.ex : cam.ex;
+  const l = addLog(logEx, { weight: wv === '' ? null : +wv, reps, rir: null, restS: cam.pendingRest, auto: true, detected: cam.counter.count(), adj: cam.adj, recId: REC.id(), extra });
+  // aprende cómo se ve este ejercicio en tu cámara (para reconocerlo en el entrenamiento libre)
+  cam.lastSig = null;
+  if (S.settings.mode !== 'sensor' && repTs.length >= 4 && cam.sig) {
+    const sg = cam.sig.signature(repTs[0] - 2000, repTs[repTs.length - 1] + 500);
+    if (sg) { const key = logEx.lib || logEx.id; learnSig(key, sg); cam.lastSig = { key, sg }; }
+  }
   REC.ev('setEnd', { logId: l.id, detected: cam.counter.count(), live, adj: cam.adj, reps, auto, stats: st });
   // sin peso anotado: se pide una vez por ejercicio (sin peso no se puede saber cuándo subir)
   cam.askedWeight = cam.askedWeight || {};
-  const askW = l.weight == null && !cam.askedWeight[cam.ex.id] ? (cam.askedWeight[cam.ex.id] = true, ' Anota el peso en la pantalla.') : '';
+  const askW = l.weight == null && !cam.askedWeight[logEx.id] ? (cam.askedWeight[logEx.id] = true, ' Anota el peso en la pantalla.') : '';
   $('#cam-weight').classList.toggle('pulse', l.weight == null);
   cam.lastSaved = l;
   $('#cam-lastreps').value = reps; $('#cam-lastreps').disabled = false;
   $('#cam-rir').style.visibility = 'visible';
   rirChips($('#cam-rir'), null, (v) => { if (cam.lastSaved) { cam.lastSaved.rir = v; save(); } });
-  const span = cam.counter.romSpan ? cam.counter.romSpan() : null;
+  const span = cam.counter.romSpan && !cam.free ? cam.counter.romSpan() : null;
   if (span && reps >= 3) {
     const store = S.settings.mode === 'sensor' ? S.romRefS : S.romRef, ref = store[cam.ex.id];
     // la referencia solo se amplía (de a poco): es tu mejor recorrido
@@ -1687,12 +1792,19 @@ function endSet(auto) {
   cam.romMiss = 0;
   const tr = cam.counter.typicalRange();
   const romStore = S.settings.mode === 'sensor' ? S.romS : S.rom;
-  if (reps >= 3 && tr) { romStore[cam.ex.id] = romStore[cam.ex.id] ? romStore[cam.ex.id] * 0.5 + tr * 0.5 : tr; save(); }
-  if (reps >= 2 && cam.counter.armPose) { const old = S.poses[cam.ex.id]; S.poses[cam.ex.id] = C.blendPose(old, cam.counter.armPose, old ? 0.3 : 1); save(); }
+  if (reps >= 3 && tr && !cam.free) { romStore[cam.ex.id] = romStore[cam.ex.id] ? romStore[cam.ex.id] * 0.5 + tr * 0.5 : tr; save(); }
+  if (reps >= 2 && cam.counter.armPose && !cam.free) { const old = S.poses[cam.ex.id]; S.poses[cam.ex.id] = C.blendPose(old, cam.counter.armPose, old ? 0.3 : 1); save(); }
   cam.counter = newCounter(cam.ex); cam.searchSince = now; cam.hintT = now; cam.gateState = 'search';
   cam.adj = 0; cam.manualT = null; cam.pendingRest = null;
   cam.restStart = last; cam.restBeeped = false; cam.warned = false; cam.lastCount = null; cam.phase = 'rest'; $('#rest').hidden = false; setStatus(null);
   cam.restTarget = cam.ex.rest; cam.nextEx = null; $('#rest-next').hidden = true;
+  if (cam.free) {
+    const F = cam.free; F.done[F.ref] = (F.done[F.ref] || 0) + 1; cam.restTarget = logEx.rest;
+    const tell = F.told[F.ref] ? '' : (F.told[F.ref] = true, ' Si no era ' + logEx.name + ', toca el nombre arriba y lo corrijo.');
+    toast('Serie ' + l.set + ' de ' + logEx.name + ': ' + reps + ' reps');
+    say(fixMsg + 'Serie ' + numWord(l.set) + ' de ' + logEx.name + ', ' + repsWord(reps) + '.' + askW + tell + ' Descansa ' + restWords(logEx.rest) + '.', true);
+    updateHud(); tickRest(now); return;
+  }
   const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
   if (done >= pl) {
     const nx = cam.guided ? nextInQueue() : (() => { const list = dayExercises(cam.ex.day); return list[list.indexOf(cam.ex) + 1]; })();
@@ -1732,12 +1844,132 @@ function tickRest(now) {
     cam.restBeeped = true; restAlarm();
     const pl = C.plannedSets(cam.ex, S.overrides, weekNow()), done = logsToday(cam.ex.id).length;
     const ready = cam.counter.state === 'armed';
-    say((done < pl ? '¡Vamos! Serie ' + numWord(done + 1) + '.' : '¡Vamos!') + (ready ? '' : S.settings.startMode === 'voice' && SpeechRec ? ' Di ' + startWords()[0] + ' cuando estés en posición.' : ' Ponte en posición de inicio.'), true);
+    say((done < pl ? cheerWord() + ' Serie ' + numWord(done + 1) + '.' : cheerWord()) + (ready ? '' : S.settings.startMode === 'voice' && SpeechRec ? ' Di ' + startWords()[0] + ' cuando estés en posición.' : ' Ponte en posición de inicio.'), true);
     cam.hintT = now;
   }
 }
 function restWords(s) { const m = Math.floor(s / 60), r = s % 60; if (!m) return numWord(r) + ' segundos'; return (m === 1 ? 'un minuto' : numWord(m) + ' minutos') + (r === 30 ? ' y medio' : r ? ' y ' + numWord(r) + ' segundos' : ''); }
 function fmtClock(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+// ---------- entrenamiento libre ----------
+// La cámara mira todo el cuerpo, cuenta cualquier movimiento repetido y adivina el ejercicio:
+// 1) comparándolo con tus series anteriores (aprende cómo se ve cada ejercicio tuyo en tu cámara)
+// 2) si no hay parecido, por reglas (qué articulación se mueve y dónde están las manos) → ejercicios de tu plan y de la biblioteca
+function freeExOf(day) { return { id: 'free@' + day, lib: null, name: 'Entrenamiento libre', cat: '', pattern: 'free', metric: 'body', startHigh: null, repMin: 6, repMax: 20, repsText: '6–20', rest: 90, sets: 1, rir: '1–2', inc: 2.5, day, equip: 'Cualquier equipo', muscle: '', muscle2: '', notes: '', rom3d: false, free: true }; }
+function openFree() {
+  if (S.settings.mode === 'sensor') { toast('El entrenamiento libre usa la cámara: elige "Cámara en trípode"'); return; }
+  cam.free = { day: selDay, ref: null, ex: null, user: false, done: {}, told: {}, opts: [] };
+  openCam(freeExOf(selDay), false, null);
+}
+function learnSig(key, sg) { S.sigs = S.sigs || {}; const a = S.sigs[key] || (S.sigs[key] = []); a.push(sg); if (a.length > 6) a.shift(); save(); }
+const refEx = (ref, day) => (String(ref).startsWith('lib:') ? RepLib.resolve({ lib: ref.slice(4) }, day) : exById(ref));
+// referencia de un ejercicio: si está en tu plan ese día, el del plan (así las series quedan juntas)
+function refFor(lib, day) { const pe = C.PLAN.find((e) => e.lib === lib && e.day === day) || C.PLAN.find((e) => e.lib === lib); return pe ? pe.id : 'lib:' + lib; }
+function freeOptions(sig) {
+  const F = cam.free, day = F.day, eq = S.profile.equip || [], out = [], seen = new Set();
+  const add = (ref, why, d) => { const e = ref && refEx(ref, day); if (!e || seen.has(e.name)) return; seen.add(e.name); out.push({ ref, name: e.name, why, d }); };
+  if (sig) C.matchSig(sig, S.sigs || {}).forEach((m) => { if (m.d < 1.0) add(RepLib.LIB[m.key] ? refFor(m.key, day) : m.key, 'tuyo', m.d); });
+  const prof = cam.counter && cam.counter.movementProfile ? cam.counter.movementProfile() : null;
+  (prof ? C.classifyMovement(prof) : []).slice(0, 3).forEach((p, i) => {
+    const plan = C.PLAN.filter((e) => e.pattern === p.pattern).sort((a, b) => (b.day === day) - (a.day === day));
+    plan.slice(0, 2).forEach((e) => add(e.id, 'plan'));
+    let L = Object.values(RepLib.LIB).filter((x) => x.pattern === p.pattern);
+    const av = L.filter((x) => !eq.length || RepLib.available(x, eq)); if (av.length) L = av;
+    L.slice(0, i === 0 ? 3 : 2).forEach((x) => add(refFor(x.lib, day), 'regla'));
+  });
+  return out;
+}
+function fallbackFreeRef() { const o = (cam.free && cam.free.opts) || []; return o.length ? o[0].ref : 'lib:squat_bw'; }
+function setFreeEx(ref, byUser) {
+  const F = cam.free; if (!F) return;
+  F.ref = ref; F.ex = refEx(ref, F.day); F.user = !!byUser;
+  if ($('#cam-weight').value === '') $('#cam-weight').value = suggestedWeight(F.ex) ?? '';
+  freeLabel(); updateHud();
+}
+function freeLabel() { const F = cam.free; $('#cam-freeex').textContent = F && F.ex ? F.ex.name + ' ▾' : '¿Qué ejercicio? ▾'; $('#cam-name').textContent = 'Libre' + (F && F.ex ? ' · ' + F.ex.name : ''); }
+function freeIdentify(final) {
+  const F = cam.free; if (!F) return;
+  const ts = cam.repTs || []; if (ts.length < 3) return;
+  const sig = cam.sig ? cam.sig.signature(ts[0] - 2000, performance.now() + 300) : null;
+  const opts = freeOptions(sig); F.opts = opts; if (!opts.length) return;
+  const best = opts[0];
+  REC.ev('freeGuess', { best: best.name, d: best.d == null ? null : Math.round(best.d * 100) / 100, why: best.why, final });
+  if (F.ref === best.ref) return;
+  // lo que elegiste manda, salvo que tus series anteriores digan claramente otra cosa
+  if (F.user && F.ex && !(best.why === 'tuyo' && best.d < 0.45)) return;
+  setFreeEx(best.ref, false);
+  if (!final) say('Parece ' + F.ex.name + '.', false);
+}
+function openFreePick() {
+  const F = cam.free; if (!F) return;
+  if (!F.opts.length && cam.counter) F.opts = freeOptions(null);
+  const row = (o) => '<button class="librow" data-ref="' + esc(o.ref) + '">' + esc(o.name) + '<small>' + (o.why === 'tuyo' ? 'Se parece a tus series anteriores' : o.why === 'plan' ? 'De tu plan' : 'Por el movimiento') + (F.ref === o.ref ? ' · elegido' : '') + '</small></button>';
+  $('#fp-list').innerHTML = F.opts.slice(0, 8).map(row).join('') || '<p class="note">Aún no hay suficientes repeticiones para adivinar: búscalo abajo.</p>';
+  $('#fp-q').value = ''; $('#fp-search').innerHTML = ''; $('#freepick').hidden = false;
+}
+$('#cam-freeex').onclick = openFreePick;
+$('#fp-cancel').onclick = () => { $('#freepick').hidden = true; };
+$('#fp-q').addEventListener('input', () => {
+  const q = $('#fp-q').value.trim().toLowerCase(); if (q.length < 2) { $('#fp-search').innerHTML = ''; return; }
+  const day = cam.free ? cam.free.day : selDay, seen = new Set(), res = [];
+  C.PLAN.concat(Object.values(RepLib.LIB)).forEach((x) => { if (res.length >= 12 || seen.has(x.name) || !(x.name + ' ' + (x.equip || '')).toLowerCase().includes(q)) return; seen.add(x.name); res.push({ ref: x.lib && !x.day ? refFor(x.lib, day) : x.id, name: x.name, equip: x.equip }); });
+  $('#fp-search').innerHTML = res.map((o) => '<button class="librow" data-ref="' + esc(o.ref) + '">' + esc(o.name) + '<small>' + esc(o.equip || '') + '</small></button>').join('') || '<p class="note">Nada con ese nombre.</p>';
+});
+document.getElementById('freepick').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-ref]'); if (!b || !cam.free) return;
+  const F = cam.free, ref = b.dataset.ref, prevRef = F.ref;
+  setFreeEx(ref, true); $('#freepick').hidden = true;
+  // si la serie recién guardada era de otro ejercicio, se corrige (y lo aprendido también)
+  const l = cam.lastSaved;
+  if (l && l.free && cam.phase !== 'set' && prevRef && prevRef !== ref) {
+    l.exId = F.ex.id; l.exName = F.ex.name; l.day = F.ex.day; l.set = logsToday(F.ex.id).filter((x) => x !== l).length + 1;
+    if (F.done[prevRef]) { F.done[prevRef]--; if (!F.done[prevRef]) delete F.done[prevRef]; } F.done[ref] = (F.done[ref] || 0) + 1;
+    if (cam.lastSig) { const a = (S.sigs || {})[cam.lastSig.key] || []; const i = a.indexOf(cam.lastSig.sg); if (i >= 0) a.splice(i, 1); const key = F.ex.lib || F.ex.id; learnSig(key, cam.lastSig.sg); cam.lastSig.key = key; }
+    save(); toast('Serie corregida: ' + F.ex.name);
+  }
+  say(F.ex.name + '. Lo recordaré.', true);
+});
+let freeAddState = null;
+// ¿ya está ese ejercicio en el día k del plan?
+function inPlanDay(ex, k) { const d = planDay(k); return !!d && d.items.some((it) => (ex.lib && it.lib === ex.lib && !it.id) || (it.id && it.id === ex.id) || (!ex.lib && it.name === ex.name)); }
+function renderFreeAdd() {
+  const st = freeAddState; if (!st) return; const k = $('#fa-day').value;
+  $('#fa-list').innerHTML = st.rows.map((r, i) => {
+    const there = inPlanDay(r.ex, k);
+    return '<label class="facheck"><input type="checkbox" data-fa="' + i + '"' + (there ? ' disabled' : ' checked') + '><span>' + esc(r.ex.name) + '<small>' + r.n + (r.n === 1 ? ' serie' : ' series') + ' hoy' + (there ? ' · ya está ese día' : '') + '</small></span></label>';
+  }).join('');
+  $('#fa-add').disabled = st.rows.every((r) => inPlanDay(r.ex, k));
+}
+function openFreeAdd(fr) {
+  const rows = Object.keys(fr.done).map((ref) => ({ ref, ex: refEx(ref, fr.day), n: fr.done[ref] })).filter((r) => r.ex);
+  if (!rows.length) return;
+  freeAddState = { fr, rows };
+  $('#fa-day').innerHTML = WEEK7.split('').map((k) => '<option value="' + k + '"' + (k === fr.day ? ' selected' : '') + '>' + RepLib.DAY_NAMES[k] + (planDay(k) ? '' : ' (descanso)') + '</option>').join('');
+  renderFreeAdd(); $('#freeadd').hidden = false;
+}
+$('#fa-day').onchange = renderFreeAdd;
+$('#fa-no').onclick = () => { $('#freeadd').hidden = true; freeAddState = null; };
+$('#fa-add').onclick = () => {
+  const st = freeAddState; if (!st) return; const k = $('#fa-day').value; let n = 0;
+  st.rows.forEach((r, i) => {
+    const cb = document.querySelector('[data-fa="' + i + '"]'); if (!cb || !cb.checked || inPlanDay(r.ex, k)) return;
+    let d = planDay(k);
+    if (!d) { d = { key: k, name: RepLib.DAY_NAMES[k], session: '', items: [] }; S.plan.days.push(d); }
+    let it, newId;
+    if (r.ex.lib) { it = { lib: r.ex.lib, sets: Math.max(2, Math.min(5, r.n)) }; newId = r.ex.lib + '@' + k; }
+    else {
+      // ejercicio propio de tu plan (sin ficha en la biblioteca): se copia al otro día
+      const src = S.plan.days.flatMap((x) => x.items).find((x) => x.id === r.ex.id) || r.ex;
+      it = Object.assign({}, src, { id: r.ex.id + '-' + k, sets: Math.max(2, Math.min(5, r.n)) }); delete it.day; newId = it.id;
+    }
+    d.items.push(it); n++;
+    // las series de hoy pasan al ejercicio del plan (mismo historial)
+    S.logs.forEach((l) => { if (l.exId === r.ex.id && l.date === todayYmd() && l.free) { l.exId = newId; l.day = k; } });
+  });
+  $('#freeadd').hidden = true; freeAddState = null;
+  if (n) { planChanged(); toast(n === 1 ? 'Agregado al ' + RepLib.DAY_NAMES[k].toLowerCase() : n + ' ejercicios agregados al ' + RepLib.DAY_NAMES[k].toLowerCase()); } else { save(); refreshAll(); }
+};
+$('#btn-free').onclick = openFree;
+
 // ---------- empezar con la voz ----------
 // Escucha una palabra (configurable) para empezar a contar y, opcionalmente, otra para terminar la serie.
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -1746,6 +1978,15 @@ const normWord = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/
 const wordsOf = (str) => String(str || '').split(',').map(normWord).filter(Boolean);
 const startWords = () => { const w = wordsOf(S.settings.startWords); return w.length ? w : ['listo']; };
 const hasWord = (text, list) => { const t = ' ' + normWord(text) + ' '; return list.some((w) => t.includes(' ' + w + ' ')); };
+const voiceMode = () => S.settings.startMode === 'voice' && !!SpeechRec && S.settings.mode !== 'sensor';
+// lo que dijo la app en los últimos segundos: el micrófono a veces la escucha y la confunde con tu palabra
+const spokenLog = [];
+function isEcho(text, now) {
+  const ws = normWord(text).split(' ').filter(Boolean); if (!ws.length) return true;
+  while (spokenLog.length && now - spokenLog[0].t > 12000) spokenLog.shift();
+  return spokenLog.some((u) => { let n = 0; ws.forEach((w) => { if (u.w.has(w)) n++; }); return n >= 2 || (ws.length >= 2 && n >= ws.length - 1 && n > 0); });
+}
+const shortCmd = (text) => normWord(text).split(' ').filter(Boolean).length <= 4;   // tu palabra, no una frase (ni la música)
 function listenStart() {
   if (!SpeechRec || S.settings.startMode !== 'voice' || $('#cam').hidden) return;
   recWanted = true; if (srec) return;
@@ -1753,9 +1994,10 @@ function listenStart() {
     srec = new SpeechRec(); srec.lang = 'es-CL'; srec.continuous = true; srec.interimResults = true; srec.maxAlternatives = 3;
     srec.onresult = (e) => {
       const now = performance.now();
-      if (speechSynthesis.speaking || now - lastSpeechEnd < 900) return;   // es la voz de la app
+      if (speechSynthesis.speaking || now - lastSpeechEnd < 1200) return;   // es la voz de la app
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const alts = [...e.results[i]].map((a) => a.transcript).join(' ');
+        const alts = [...e.results[i]].map((a) => a.transcript).join(' '), first = e.results[i][0] ? e.results[i][0].transcript : alts;
+        if (!shortCmd(first) || isEcho(first, now)) { if (e.results[i].isFinal) REC.ev('voiceIgnored', normWord(first).slice(0, 60)); continue; }
         if (cam.counter && cam.counter.state !== 'armed' && !cam.nextEx && cam.phase !== 'done' && hasWord(alts, startWords())) {
           if (cam.counter.manualArm(now)) { $('#cam-arm').hidden = true; onArmed(now, true); REC.ev('voiceArm', normWord(alts)); }
           return;
@@ -1764,7 +2006,7 @@ function listenStart() {
         if (stops.length && cam.phase === 'set' && curReps() > 0 && e.results[i].isFinal && hasWord(alts, stops)) { REC.ev('voiceStop'); endSet(false); return; }
       }
     };
-    srec.onend = () => { srec = null; if (recWanted && !$('#cam').hidden) setTimeout(listenStart, recFails > 3 ? 2000 : 250); };
+    srec.onend = () => { srec = null; if (recWanted && !$('#cam').hidden) setTimeout(relisten, recFails > 3 ? 2000 : 250); };
     srec.onerror = (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { recWanted = false; toast('Permite el micrófono para empezar con la voz'); }
       else if (e.error === 'network') { recFails++; if (recFails === 3) toast('Sin internet: el reconocimiento de voz no funciona. Usa el botón.'); }
@@ -1772,6 +2014,12 @@ function listenStart() {
     srec.onstart = () => { recFails = 0; $('#cam-mic').hidden = false; };
     srec.start();
   } catch (e) { srec = null; }
+}
+// vuelve a escuchar solo cuando la app terminó de hablar (si no, se escucha a sí misma)
+function relisten() {
+  if (!recWanted || $('#cam').hidden || srec) return;
+  if (speechSynthesis.speaking || performance.now() - lastSpeechEnd < 700) { setTimeout(relisten, 300); return; }
+  listenStart();
 }
 function stopListening() { recWanted = false; $('#cam-mic').hidden = true; try { srec && srec.abort(); } catch (e) {} srec = null; }
 
@@ -1787,9 +2035,11 @@ function say(text, interrupt) {
   if (!S.settings.voice || !('speechSynthesis' in window)) return;
   try {
     if (interrupt) speechSynthesis.cancel();
+    spokenLog.push({ t: performance.now(), w: new Set(normWord(text).split(' ').filter((x) => x.length > 1)) });
+    if (srec) { try { srec.abort(); } catch (e) {} }   // micrófono en pausa mientras la app habla
     const u = new SpeechSynthesisUtterance(text); u.lang = esVoice ? esVoice.lang : 'es-ES'; if (esVoice) u.voice = esVoice;
     u.rate = S.settings.voiceRate || 1.15; u.volume = S.settings.voiceVol ?? 1; u.pitch = 1.05;
-    u.onend = u.onerror = () => { lastSpeechEnd = performance.now(); };
+    u.onend = u.onerror = () => { lastSpeechEnd = performance.now(); if (recWanted && !srec) setTimeout(relisten, 700); };
     speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -1950,7 +2200,7 @@ function setClMode(m) {
 }
 async function startCloud() {
   showCloudLogin('Conectando con el servidor…', true);
-  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=25'); Cloud.init(CFG.firebase); }
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=26'); Cloud.init(CFG.firebase); }
   catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
   Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
 }
@@ -2221,9 +2471,11 @@ function renderPlan() {
   const P = S.plan, tgt = VOL_TARGET[S.profile.level] || VOL_TARGET.intermedio, wm = weeklyMuscles(), mx = tgt[1] * 1.4;
   const free = DAY_ORDER.split('').filter((k) => !planDay(k));
   const eqn = (S.profile.equip || []).map((k) => RepLib.EQUIP[k]).filter(Boolean);
-  let h = '<div class="card"><h3>' + esc(P.name) + '</h3><p class="note">' + P.days.length + ' días · ' + C.PLAN.length + ' ejercicios. Tu equipo: ' + esc(eqn.join(', ') || 'sin marcar') + '.</p>' +
+  let h = '<div class="card"><h3>' + esc(P.name) + '</h3><p class="note">' + P.days.length + ' días de entrenamiento y ' + (7 - P.days.length) + ' de descanso · ' + C.PLAN.length + ' ejercicios. Tu equipo: ' + esc(eqn.join(', ') || 'sin marcar') + '.</p>' +
     '<div class="row"><button class="btn primary small" id="pl-tpl">Elegir otro plan</button><button class="btn ghost small" id="pl-eq">Mi equipo</button></div></div>';
-  h += P.days.slice().sort((a, b) => DAY_ORDER.indexOf(a.key) - DAY_ORDER.indexOf(b.key)).map((d) => {
+  h += DAY_ORDER.split('').map((k) => {
+    const d = planDay(k);
+    if (!d) return '<div class="card pday restd"><h3><span>' + RepLib.DAY_NAMES[k] + '</span><em>Descanso</em></h3><button class="btn ghost small" data-mkday="' + k + '">+ Convertir en día de entrenamiento</button></div>';
     const items = d.items.map((it) => RepLib.resolve(it, d.key));
     return '<div class="card pday"><h3><span>' + esc(d.name || RepLib.DAY_NAMES[d.key]) + '</span><button class="x" data-delday="' + d.key + '" aria-label="Quitar día">🗑</button></h3>' +
       '<input class="sess" data-sess="' + d.key + '" value="' + esc(d.session || '') + '" placeholder="Nombre de la sesión (ej.: Torso)">' +
@@ -2231,7 +2483,6 @@ function renderPlan() {
         '<button data-up="' + d.key + '|' + i + '" aria-label="Subir"' + (i ? '' : ' disabled') + '>↑</button><button data-down="' + d.key + '|' + i + '" aria-label="Bajar"' + (i < items.length - 1 ? '' : ' disabled') + '>↓</button><button data-edit="' + d.key + '|' + i + '" aria-label="Editar">✎</button></div>').join('') +
       '<button class="btn ghost small" data-add="' + d.key + '">+ Agregar ejercicio</button></div>';
   }).join('');
-  if (free.length) h += '<div class="card"><div class="setting"><span>Agregar día</span><select id="pl-addday"><option value="">Elegir…</option>' + free.map((k) => '<option value="' + k + '">' + RepLib.DAY_NAMES[k] + '</option>').join('') + '</select></div></div>';
   h += '<div class="card"><h3>Series por músculo a la semana</h3><p class="note" style="margin-bottom:8px">Meta ' + tgt[0] + '–' + tgt[1] + ' (según tu experiencia en Mi perfil). La franja gris es la meta; el músculo secundario cuenta media serie.</p><div class="mbars">' +
     RepLib.MUSCLES.map((m) => { const v = wm[m] || 0; return '<div class="mbar"><span>' + m + '</span><div class="tr"><u style="left:' + (tgt[0] / mx * 100) + '%;width:' + ((tgt[1] - tgt[0]) / mx * 100) + '%"></u><i class="' + (v >= tgt[0] ? 'ok' : '') + '" style="width:' + Math.min(100, v / mx * 100) + '%"></i></div><em>' + String(Math.round(v * 2) / 2).replace('.', ',') + '</em></div>'; }).join('') + '</div></div>';
   $('#plan').innerHTML = h;
@@ -2244,6 +2495,7 @@ $('#plan').addEventListener('click', (ev) => {
   if (t.dataset.up || t.dataset.down) { const r = ref(t.dataset.up || t.dataset.down), j = r.i + (t.dataset.up ? -1 : 1), it = r.d.items; [it[r.i], it[j]] = [it[j], it[r.i]]; delete S.order[r.d.key]; return planChanged(); }
   if (t.dataset.edit) return openItem(ref(t.dataset.edit));
   if (t.dataset.add) { libTarget = { day: t.dataset.add }; return openLib(null); }
+  if (t.dataset.mkday) { const k = t.dataset.mkday; S.plan.days.push({ key: k, name: RepLib.DAY_NAMES[k], session: '', items: [] }); planChanged(); libTarget = { day: k }; return openLib(null); }
   if (t.dataset.delday) { const d = planDay(t.dataset.delday); if (d.items.length && !confirm('¿Quitar el ' + (d.name || '').toLowerCase() + ' del plan?')) return; S.plan.days = S.plan.days.filter((x) => x !== d); return planChanged(); }
 });
 $('#plan').addEventListener('change', (ev) => {
@@ -2484,7 +2736,7 @@ function loadSettings() {
   $('#set-romvoice').value = S.settings.romVoice ? '1' : '0'; $('#set-rotmode').value = S.settings.rotMode || 'auto';
   $('#set-camh').value = S.settings.camHeight; $('#set-camd').value = S.settings.camDist;
   $('#set-startmode').value = S.settings.startMode || 'auto'; $('#set-startwords').value = S.settings.startWords || ''; $('#set-stopwords').value = S.settings.stopWords || '';
-  $('#set-voicevol').value = String(S.settings.voiceVol ?? 1); $('#set-voicerate').value = String(S.settings.voiceRate || 1.15);
+  $('#set-voicevol').value = String(S.settings.voiceVol ?? 1); $('#set-encourage').value = S.settings.encourage || 'soft'; $('#set-voicerate').value = String(S.settings.voiceRate || 1.15);
   $('#set-beepvol').value = S.settings.beepVol || 'high'; $('#set-repbeep').value = S.settings.repBeep ? '1' : '0';
   const cu = curUser(); $('#pf-name').value = cu.name; $('#pf-lock').value = cu.lock || 'none';
   const P = S.profile; $('#pf-bw').value = P.bw ?? ''; $('#pf-h').value = P.height ?? ''; $('#pf-age').value = P.age ?? ''; $('#pf-level').value = P.level || 'intermedio';
@@ -2534,7 +2786,7 @@ const REC = (() => {
       t0 = performance.now(); lastT = 0;
       cur = { id: 'r' + Date.now().toString(36), startedAt: new Date().toISOString(), exId: ex.id, exName: ex.name, pattern: ex.pattern, metric: ex.metric,
         startHigh: ex.startHigh, repMin: ex.repMin, repMax: ex.repMax, facing: S.settings.facing, model: S.settings.model, countMode: S.settings.countMode,
-        video: currentRot() % 180 ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight], rot: currentRot(), ua: navigator.userAgent, joints: J, frames: [], events: [], w3: [], grav: [], screenAngle: (screen.orientation && screen.orientation.angle) || 0, camHeight: S.settings.camHeight, camDist: S.settings.camDist, postureProfile: S.postureProfile };
+        video: currentRot() % 180 ? [video.videoHeight, video.videoWidth] : [video.videoWidth, video.videoHeight], rot: currentRot(), ua: navigator.userAgent, joints: J, frames: [], events: [], w3: [], grav: [], screenAngle: (screen.orientation && screen.orientation.angle) || 0, camHeight: S.settings.camHeight, camDist: S.settings.camDist, postureProfile: S.postureProfile, startMode: S.settings.startMode, appVer: APP_VER };
     },
     frame(now, raw, q, state, wl, g) {
       if (!cur || now - lastT < 66) return; lastT = now;
@@ -2577,6 +2829,7 @@ $('#btn-calibclear').onclick = () => { S.postureProfile = null; save(); renderCa
 $('#set-rotmode').onchange = (e) => { S.settings.rotMode = e.target.value; save(); };
 $('#set-romvoice').onchange = (e) => { S.settings.romVoice = e.target.value === '1'; save(); };
 $('#set-voicevol').onchange = (e) => { S.settings.voiceVol = +e.target.value; save(); };
+$('#set-encourage').onchange = (e) => { S.settings.encourage = e.target.value; save(); say(e.target.value === 'hard' ? ENC.hard[0] : e.target.value === 'soft' ? ENC.soft[1] : 'Sin ánimo', true); };
 $('#set-startmode').onchange = (e) => { S.settings.startMode = e.target.value; save(); if (e.target.value === 'voice' && !SpeechRec) toast('Este navegador no reconoce voz: usa el botón'); };
 $('#set-startwords').onchange = (e) => { S.settings.startWords = e.target.value; save(); };
 $('#set-stopwords').onchange = (e) => { S.settings.stopWords = e.target.value; save(); };
@@ -2706,7 +2959,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 25;
+const APP_VER = 26;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {

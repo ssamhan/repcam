@@ -506,17 +506,18 @@
     const sh = mid2(11, 12), hp = mid2(23, 24), an = mid2(27, 28), kn = mid2(25, 26);
     const T = sh && hp ? dist(sh, hp) : null;
     const put = function (k, val, unit) { if (val != null && !isNaN(val)) o[k] = { v: val, u: unit }; };
-    const arm = ARM_PATTERNS.indexOf(pattern) >= 0;
+    const free = pattern === 'free', arm = ARM_PATTERNS.indexOf(pattern) >= 0 || free, leg = !arm || free;
     ['L', 'R'].forEach(function (k) {
       const S = SIDE[k];
       if (arm) {
         if (v(S.sh) && v(S.el) && v(S.wr)) put('codo2D-' + k, angle(lm[S.sh], lm[S.el], lm[S.wr]), 'deg');
         if (wl && v(S.sh) && v(S.el) && v(S.wr)) put('codo3D-' + k, angle3(wl[S.sh], wl[S.el], wl[S.wr]), 'deg');
-        if (pattern === 'raise' || pattern === 'facepull') {
+        if (pattern === 'raise' || pattern === 'facepull' || free) {
           if (v(S.hip) && v(S.sh) && v(S.el)) put('hombro2D-' + k, angle(lm[S.hip], lm[S.sh], lm[S.el]), 'deg');
           if (wl && v(S.hip) && v(S.sh) && v(S.el)) put('hombro3D-' + k, angle3(wl[S.hip], wl[S.sh], wl[S.el]), 'deg');
         }
-      } else {
+      }
+      if (leg) {
         if (v(S.hip) && v(S.kn) && v(S.an)) put('rodilla2D-' + k, angle(lm[S.hip], lm[S.kn], lm[S.an]), 'deg');
         if (wl && v(S.hip) && v(S.kn) && v(S.an)) put('rodilla3D-' + k, angle3(wl[S.hip], wl[S.kn], wl[S.an]), 'deg');
         if (v(S.sh) && v(S.hip) && v(S.kn)) put('cadera2D-' + k, angle(lm[S.sh], lm[S.hip], lm[S.kn]), 'deg');
@@ -527,8 +528,9 @@
       if (arm) {
         const wr = mid2(15, 16); if (wr && sh) put('muñecaY', (wr.y - sh.y) / T, 'ratio');
         const el = mid2(13, 14); if (el && sh) put('codoY', (el.y - sh.y) / T, 'ratio');
-        if (pattern === 'fly' && v(15) && v(16) && v(11) && v(12)) { const sw = dist(lm[11], lm[12]); if (sw) put('manos2D', dist(lm[15], lm[16]) / sw, 'ratio'); }
-      } else {
+        if ((pattern === 'fly' || free) && v(15) && v(16) && v(11) && v(12)) { const sw = dist(lm[11], lm[12]); if (sw) put('manos2D', dist(lm[15], lm[16]) / sw, 'ratio'); }
+      }
+      if (leg) {
         if (hp && an) put('caderaY', (an.y - hp.y) / T, 'ratio');
         if (sh && an) put('hombroY', (an.y - sh.y) / T, 'ratio');
         if (pattern === 'legcurl' || pattern === 'legext') { if (an && kn) put('tobilloY', (an.y - kn.y) / T, 'ratio'); }
@@ -538,22 +540,32 @@
           const to = mid2(31, 32);
           if (to && hp) put('caderaPunta', (to.y - hp.y) / T, 'ratio');
           if (to && kn) put('rodillaPunta', (to.y - kn.y) / T, 'ratio');
+          // todo el cuerpo sube 5–8 cm: promedio de cabeza, hombros y caderas (más puntos = menos ruido)
+          const up2 = [0, 11, 12, 23, 24].filter(function (i) { return v(i); });
+          if (up2.length >= 3) {
+            const by = up2.reduce(function (s0, i) { return s0 + lm[i].y; }, 0) / up2.length;
+            if (to) put('cuerpoPunta', (to.y - by) / T, 'ratio');
+            put('cuerpoY', -by / T, 'ratio');   // cámara quieta: altura del cuerpo en la imagen (sirve aunque el pie quede tapado)
+          }
         }
       }
     }
     if (wl && up) {
       const rf = romFeatures(wl, vis, up);
       if (arm && rf.wristH != null) put('muñeca3D', rf.wristH, 'm');
-      if (!arm && rf.hipKneeH != null) put('caderaRodilla3D', rf.hipKneeH, 'm');
+      if (leg && rf.hipKneeH != null) put('caderaRodilla3D', rf.hipKneeH, 'm');
       if (pattern === 'calf') {
         const m3 = function (a, b) { return vis(a) && vis(b) && wl[a] && wl[b] ? { x: (wl[a].x + wl[b].x) / 2, y: (wl[a].y + wl[b].y) / 2, z: (wl[a].z + wl[b].z) / 2 } : vis(a) && wl[a] ? wl[a] : vis(b) && wl[b] ? wl[b] : null; };
         const toe3 = m3(31, 32), hip3 = m3(23, 24), kn3 = m3(25, 26);
         if (toe3 && hip3) put('caderaPunta3D', dot3(vsub(hip3, toe3), up), 'm');
         if (toe3 && kn3) put('rodillaPunta3D', dot3(vsub(kn3, toe3), up), 'm');
+        const sh3 = m3(11, 12); if (toe3 && sh3) put('hombroPunta3D', dot3(vsub(sh3, toe3), up), 'm');
       }
     }
     return o;
   }
+  const HIGHPASS = ['cuerpoY'];
+  const WEIGHTED = { calf: true };
   const MIN_AMP = { deg: 30, ratio: 0.18, m: 0.12 };
   // movimientos cortos: umbral mínimo menor (gemelos: el talón sube 5–8 cm)
   const MIN_AMP_PATTERN = { calf: { deg: 8, ratio: 0.035, m: 0.025 } };
@@ -578,7 +590,7 @@
     return r;
   };
   // señal de referencia de cada métrica: su dirección (empieza arriba o abajo) se conoce por el ejercicio
-  const REF_PREFIX = { elbow: ['codo2D-', 'codo3D-'], knee: ['rodilla2D-', 'rodilla3D-'], kneeMin: ['rodilla2D-', 'rodilla3D-'], hip: ['cadera2D-', 'cadera3D-'], shoulderAbd: ['hombro2D-', 'hombro3D-'], wristDist: ['manos2D'], heel: ['talon-'] };
+  const REF_PREFIX = { elbow: ['codo2D-', 'codo3D-'], knee: ['rodilla2D-', 'rodilla3D-'], kneeMin: ['rodilla2D-', 'rodilla3D-'], hip: ['cadera2D-', 'cadera3D-'], shoulderAbd: ['hombro2D-', 'hombro3D-'], wristDist: ['manos2D'], heel: ['talon-', 'cuerpoPunta', 'cuerpoY', 'caderaPunta3D', 'hombroPunta3D'] };
   function corr(a, b) {
     const n = a.length; if (n < 20) return 0; let ma = 0, mb = 0; for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; } ma /= n; mb /= n;
     let sab = 0, saa = 0, sbb = 0; for (let i = 0; i < n; i++) { const x = a[i] - ma, y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; }
@@ -642,10 +654,19 @@
       const top = bs;
       const counts = [];
       const used = [];
-      for (const k in this.c) { const c = this.c[k]; if (c.dirKnown && (c.coverage || 0) >= 0.7 && this.score(k) >= top * 0.3 && c.amp >= c.minAmp) { counts.push(c.tr.count); used.push(k); } }
+      const wts = [];
+      for (const k in this.c) { const c = this.c[k]; if (c.dirKnown && (c.coverage || 0) >= 0.7 && this.score(k) >= top * 0.3 && c.amp >= c.minAmp) { counts.push(c.tr.count); used.push(k); wts.push(this.score(k)); } }
       if (counts.length) {
-        counts.sort(function (x, y) { return x - y; });
-        const m = counts.length % 2 ? counts[counts.length >> 1] : Math.floor((counts[counts.length / 2 - 1] + counts[counts.length / 2]) / 2);
+        let m;
+        if (WEIGHTED[this.pattern]) {
+          // mediana ponderada por calidad: en movimientos cortos una señal limpia vale más que varias ruidosas
+          const ord = counts.map(function (x, i) { return [x, wts[i]]; }).sort(function (a, b) { return a[0] - b[0]; });
+          const tot = wts.reduce(function (a, b) { return a + b; }, 0); let acc = 0; m = ord[ord.length - 1][0];
+          for (let i = 0; i < ord.length; i++) { acc += ord[i][1]; if (acc >= tot / 2) { m = ord[i][0]; break; } }
+        } else {
+          counts.sort(function (x, y) { return x - y; });
+          m = counts.length % 2 ? counts[counts.length >> 1] : Math.floor((counts[counts.length / 2 - 1] + counts[counts.length / 2]) / 2);
+        }
         if (m > this.count) { const d = m - this.count; this.count = m; this.leaderReps++; this.mark(t, used); return d; }
       }
       return 0;
@@ -793,7 +814,7 @@
       } else if (postureOk || !see) this.badSince = null;
       if (ok) { if (this.since == null) this.since = t; if (t - this.since >= need) { this.arm(t, by); this.badSince = null; out.armed = true; } }
       else this.since = null;
-    } else if (this.lastVisibleT == null || t - this.lastVisibleT > 1500) {
+    } else if (!this.manualOnly && (this.lastVisibleT == null || t - this.lastVisibleT > 1500)) {   // con voz sigue contando hasta que dices la palabra de terminar
       this.state = 'search'; this.since = null; this.reason = 'camera'; out.disarmed = true;
     } else if (this.template && v && !this.always) {
       // quieto pero lejos de la posición aprendida (descansando, estirando): deja de contar
@@ -811,6 +832,16 @@
         for (const k in rf) { const v0 = rf[k]; if (v0 == null || isNaN(v0)) continue; if (c.min[k] == null || v0 < c.min[k]) c.min[k] = v0; if (c.max[k] == null || v0 > c.max[k]) c.max[k] = v0; }
       }
       const cands = signalCandidates(this.ex.pattern, lm, ctx3 && ctx3.wl, vis2, ctx3 && ctx3.up);
+      if (this.ex.pattern === 'free') this.collectGeo(lm, vis2, f);
+      // señales absolutas (altura del cuerpo en la imagen): se les resta la media de los últimos 3,5 s
+      // para que solo quede el sube y baja de cada rep y no la deriva (acercarse, moverse de lugar)
+      for (const k in cands) {
+        if (HIGHPASS.indexOf(k) < 0) continue;
+        const hb = this.hpBuf || (this.hpBuf = {}), q = hb[k] || (hb[k] = []);
+        q.push({ t: t, x: cands[k].v }); while (q.length && t - q[0].t > 3500) q.shift();
+        let m = 0; for (let i = 0; i < q.length; i++) m += q[i].x; m /= q.length;
+        cands[k] = { v: cands[k].v - m, u: cands[k].u };
+      }
       const SR = this.series || (this.series = {}); this.seriesFrames = (this.seriesFrames || 0) + 1;
       for (const k in cands) (SR[k] || (SR[k] = [])).push({ t: t, x: cands[k].v });
       const dn = this.bank.push(t, cands);
@@ -824,6 +855,9 @@
           const r3 = this.cyc && this.use3dRom ? romCheck3D(this.ex.pattern, this.cyc, this.romSlack) : undefined;
           out.rom = r3 !== undefined ? r3 : (lt ? romCheck(lt.startHigh, lt.repLo, lt.repHi, this.romLog.length >= 4 ? this.romSpan() : null, this.relTol) : null);
           out.rom3d = r3 !== undefined; this.cyc = null;
+        } else if (WEIGHTED[this.ex.pattern]) {
+          // movimientos cortos: el consenso se pone al día con reps que ya ocurrieron (no es un doble conteo)
+          this.reps++; this.lastRep = t; out.rep = true; out.added = dn; this.cyc = null;
         } else this.cyc = null;
       }
       out.signal = this.bank.leader;
@@ -945,7 +979,9 @@
     const mx = Math.max.apply(null, votes.map(function (v) { return v.n; }));
     const good = votes.filter(function (v) { return v.n >= 2 && v.n >= 0.6 * mx && v.cv < RECOUNT_CV; });
     if (!good.length) return null;          // ninguna señal confiable: queda el conteo en vivo
-    const freq = {}; good.forEach(function (v) { freq[v.n] = (freq[v.n] || 0) + 1; });
+    const bank = this.bank, wt = WEIGHTED[this.ex.pattern];
+    // gemelos y otros movimientos cortos: cada voto pesa según la calidad de su señal
+    const freq = {}; good.forEach(function (v) { freq[v.n] = (freq[v.n] || 0) + (wt ? bank.score(v.k) : 1); });
     const ns = good.map(function (v) { return v.n; }).sort(function (a, b) { return a - b; }), med = ns[(ns.length - 1) >> 1];
     let best = med; for (const n in freq) if (freq[n] > freq[best] || (freq[n] === freq[best] && Math.abs(n - med) < Math.abs(best - med))) best = +n;
     const pick = good.filter(function (v) { return v.n === best; }).sort(function (a, b) { return a.cv - b.cv; });
@@ -993,6 +1029,108 @@
     return d;
   };
   RepCounter.prototype.finalizeOld = function () { if (this.rhythm.trailingExtra()) { this.reps--; this.rhythm.times.pop(); this.rhythm.mids.pop(); if (this.romLog) this.romLog.pop(); return true; } return false; };
+
+  // ---------- firma de movimiento: aprende cómo se ve cada ejercicio tuyo en tu cámara ----------
+  // Por serie: qué partes se mueven con ritmo (codo, rodilla, cadera, hombro, manos, alturas) y la postura típica.
+  // En entrenamiento libre se compara con tus series anteriores para adivinar qué ejercicio es.
+  const SIG_DYN = ['elbow', 'knee', 'hip', 'shoulder', 'hands', 'wristY', 'elbowY', 'hipY', 'shY', 'kneeY'];
+  const SIG_ST = { elbow: 60, knee: 60, hip: 60, shoulder: 60, wristY: 0.8, torso: 30, hands: 1 };
+  function sigFrame(lm) {
+    const v = function (i) { return lm[i] && (lm[i].visibility ?? 1) >= 0.5; };
+    const side = function (a, b, c) { let n = 0, s0 = 0; for (let k = 0; k < 2; k++) if (v(a[k]) && v(b[k]) && v(c[k])) { s0 += angle(lm[a[k]], lm[b[k]], lm[c[k]]); n++; } return n ? s0 / n : null; };
+    const mid = function (a, b) { return v(a) && v(b) ? { x: (lm[a].x + lm[b].x) / 2, y: (lm[a].y + lm[b].y) / 2 } : v(a) ? lm[a] : v(b) ? lm[b] : null; };
+    const sh = mid(11, 12), hp = mid(23, 24), wr = mid(15, 16), el = mid(13, 14), kn = mid(25, 26);
+    const T = sh && hp ? dist(sh, hp) : null; if (!T) return null;
+    return { elbow: side([11, 12], [13, 14], [15, 16]), knee: side([23, 24], [25, 26], [27, 28]), hip: side([11, 12], [23, 24], [25, 26]), shoulder: side([23, 24], [11, 12], [13, 14]),
+      hands: v(15) && v(16) && v(11) && v(12) ? dist(lm[15], lm[16]) / Math.max(1e-6, dist(lm[11], lm[12])) : null,
+      wristY: wr ? (wr.y - sh.y) / T : null, elbowY: el ? (el.y - sh.y) / T : null, hipY: hp.y / T, shY: sh.y / T, kneeY: kn ? kn.y / T : null,
+      torso: Math.atan2(Math.abs(sh.x - hp.x), hp.y - sh.y) * 180 / Math.PI };
+  }
+  function MoveSig() { this.rows = []; this.lastT = -1e9; }
+  MoveSig.prototype.push = function (t, lm) {
+    if (!lm || t - this.lastT < 80) return; this.lastT = t;
+    this.rows.push({ t: t, f: sigFrame(lm) }); while (this.rows.length && t - this.rows[0].t > 120000) this.rows.shift();
+  };
+  MoveSig.prototype.reset = function () { this.rows = []; };
+  MoveSig.prototype.signature = function (t0, t1) {
+    const rows = this.rows.filter(function (r) { return r.t >= t0 && r.t <= t1; }); if (rows.length < 25) return null;
+    const qq = function (a, p) { const b = a.slice().sort(function (x, y) { return x - y; }); return b[Math.min(b.length - 1, Math.floor(b.length * p))]; };
+    const sig = { dyn: {}, st: {} }; let tot = 0;
+    SIG_DYN.forEach(function (k) {
+      const xs = rows.map(function (r) { return r.f && r.f[k]; }).filter(function (x) { return x != null; });
+      if (xs.length < rows.length * 0.5) { sig.dyn[k] = 0; return; }
+      const sm = xs.map(function (x, i) { return qq(xs.slice(Math.max(0, i - 1), i + 2), 0.5); });
+      const amp = qq(sm, 0.9) - qq(sm, 0.1), d2 = []; for (let i = 2; i < sm.length; i++) d2.push(Math.abs(sm[i] - 2 * sm[i - 1] + sm[i - 2]));
+      sig.dyn[k] = amp / (qq(d2, 0.5) + 1e-6); tot += sig.dyn[k];
+    });
+    for (const k in sig.dyn) sig.dyn[k] = Math.round(sig.dyn[k] / (tot || 1) * 1000) / 1000;
+    for (const k in SIG_ST) { const xs = rows.map(function (r) { return r.f && r.f[k]; }).filter(function (x) { return x != null; }); sig.st[k] = xs.length ? Math.round(qq(xs, 0.5) * 100) / 100 : null; }
+    return sig;
+  };
+  function sigDist(a, b) {
+    let d = 0; SIG_DYN.forEach(function (k) { d += 4 * Math.pow((a.dyn[k] || 0) - (b.dyn[k] || 0), 2); });
+    for (const k in SIG_ST) { if (a.st[k] != null && b.st[k] != null) d += 0.25 * Math.pow((a.st[k] - b.st[k]) / SIG_ST[k], 2); else d += 0.1; }
+    return Math.sqrt(d);
+  }
+  // tus ejercicios ordenados por parecido: [{key, d}]
+  function matchSig(sig, store) {
+    const out = []; for (const k in store) { let m = Infinity; (store[k] || []).forEach(function (s0) { const dd = sigDist(sig, s0); if (dd < m) m = dd; }); if (m < Infinity) out.push({ key: k, d: m }); }
+    return out.sort(function (a, b) { return a.d - b.d; });
+  }
+  // ---------- entrenamiento libre: qué movimiento es ----------
+  // geometría de la serie: altura de las muñecas respecto de los hombros (en largos de tronco; + = más abajo) e inclinación del tronco
+  RepCounter.prototype.collectGeo = function (lm, vis, f) {
+    const g = this.geo || (this.geo = { n: 0, wy: [], torso: [], post: {} });
+    const sh = vis(11) && vis(12) ? { y: (lm[11].y + lm[12].y) / 2 } : vis(11) ? lm[11] : vis(12) ? lm[12] : null;
+    const wr = vis(15) && vis(16) ? { y: (lm[15].y + lm[16].y) / 2 } : vis(15) ? lm[15] : vis(16) ? lm[16] : null;
+    const T = f && f.torsoLen;
+    if (sh && wr && T) g.wy.push((wr.y - sh.y) / T);
+    if (f && f.torso != null) g.torso.push(f.torso);
+    if (this.postureNow) g.post[this.postureNow] = (g.post[this.postureNow] || 0) + 1;
+    g.n++; if (g.wy.length > 900) { g.wy.shift(); } if (g.torso.length > 900) g.torso.shift();
+  };
+  RepCounter.prototype.movementProfile = function () {
+    const c = (this.bank && this.bank.c) || {}, g = this.geo || { wy: [], torso: [], post: {} };
+    const amp = function (re) { let m = 0; for (const k in c) if (re.test(k) && c[k].amp > m && (c[k].coverage == null || c[k].coverage > 0.5)) m = c[k].amp; return m; };
+    const q = function (a, p) { if (!a.length) return null; const b = a.slice().sort(function (x, y) { return x - y; }); return b[Math.min(b.length - 1, Math.floor(b.length * p))]; };
+    let post = null, pm = 0; for (const k in g.post) if (g.post[k] > pm) { pm = g.post[k]; post = k; }
+    return { elbow: amp(/^codo[23]D/), knee: amp(/^rodilla[23]D/), hip: amp(/^cadera[23]D/), shoulder: amp(/^hombro[23]D/), hands: amp(/^manos2D/),
+      wyMin: q(g.wy, 0.08), wyMax: q(g.wy, 0.92), wyMean: q(g.wy, 0.5), torso: q(g.torso, 0.5), posture: post, leader: this.bank && this.bank.leader };
+  };
+  // reglas simples sobre qué articulación se mueve más y dónde están las manos; devuelve patrones ordenados
+  function classifyMovement(p) {
+    const s = {}, add = function (k, v) { s[k] = (s[k] || 0) + v; };
+    const E = p.elbow / 90, K = p.knee / 80, H = p.hip / 70, Sh = p.shoulder / 80, Hd = p.hands / 1.2;
+    const legs = Math.max(K, H), arms = Math.max(E, Sh, Hd);
+    const lying = p.posture === 'lying', seated = p.posture === 'seated', bent = p.posture === 'bent' || (p.torso != null && p.torso > 35 && p.torso < 70);
+    const wyMin = p.wyMin == null ? 0.5 : p.wyMin, wyMax = p.wyMax == null ? 1 : p.wyMax, wyMean = p.wyMean == null ? 0.7 : p.wyMean;
+    if (legs >= arms * 0.9 && legs > 0.25) {
+      if (K > 0.45 && H > 0.4) { add('squat', 2); add('lunge', 1); }
+      if (H > 0.4 && K <= 0.45) { if (lying) { add('hipthrust', 2); add('crunch', 1); } else if (seated) { add('crunch', 1.5); add('hipthrust', 1); } else { add('hinge', 2); add('crunch', 0.4); } }
+      if (K > 0.4 && H < 0.3) { if (seated) { add('legext', 2); add('legcurl', 1); } else { add('legcurl', 2); add('legext', 0.8); } }
+      if (K < 0.3 && H < 0.3 && legs > 0.15) add('calf', 1);
+      if (!Object.keys(s).length) add(K > H ? 'squat' : 'hinge', 1);
+      add('squat', 0.1);
+    } else {
+      if (Hd > 0.4 && Hd >= E * 0.8 && Hd >= Sh * 0.8) add('fly', 2);
+      if (Sh > 0.4 && Sh >= E) { add('raise', 2); add('facepull', 0.5); }
+      if (E > 0.35) {
+        if (lying) { add('press_h', 2.5); add('row', 0.5); add('pushdown', 0.3); }
+        else if (wyMin < -0.6) {
+          // manos sobre la cabeza: press de hombros, jalón/dominadas o tríceps sobre la cabeza
+          if (wyMax < -0.15) { add('pull', 2); add('overhead', 1.2); add('press_v', 1); }
+          else { add('press_v', 2); add('pull', 1); add('overhead', 0.8); }
+        } else if (bent) { add('row', 2); add('pushdown', 0.6); add('curl', 0.3); }
+        else if (seated && wyMean > 0.25 && wyMean < 0.9) { add('row', 1.6); add('press_h', 1.2); add('curl', 0.8); }
+        else {
+          if (wyMin < 0.35) { add('curl', 2); add('pushdown', 1); } else { add('pushdown', 2); add('curl', 1); }
+          add('row', 0.4); add('press_h', 0.3);
+        }
+      }
+      if (!Object.keys(s).length) add(Sh > E ? 'raise' : 'curl', 1);
+    }
+    return Object.keys(s).sort(function (a, b) { return s[b] - s[a]; }).map(function (k) { return { pattern: k, score: s[k] }; });
+  }
   RepCounter.prototype.romSpan = function () {
     // el mejor recorrido de la serie (2º mejor extremo, para ignorar un salto aislado)
     const L = this.romLog; if (L.length < 3) return null;
@@ -1212,6 +1350,7 @@
       case 'shoulderAbd': return s(['hip', 'sh', 'el']);
       case 'heel': return s(['hip', 'an', 'toe']);
       case 'wristDist': return { C: [11, 12, 15, 16] };
+      case 'body': return s(['sh', 'el', 'wr', 'hip', 'kn', 'an']);
     }
     return { C: [] };
   }
@@ -1223,12 +1362,12 @@
     return best;
   }
   const JOINT_HELP = { elbow: 'hombro, codo y muñeca', knee: 'cadera, rodilla y tobillo', kneeMin: 'cadera, rodilla y tobillo', hip: 'hombro, cadera y rodilla',
-    shoulderAbd: 'cadera, hombro y codo', heel: 'cadera, tobillo y punta del pie', wristDist: 'ambos hombros y ambas muñecas' };
+    shoulderAbd: 'cadera, hombro y codo', heel: 'cadera, tobillo y punta del pie', wristDist: 'ambos hombros y ambas muñecas', body: 'el cuerpo completo' };
 
   const api = { PLAN: PLAN, DAYS: DAYS, DEFAULT_PLAN: DEFAULT_PLAN, setPlan: setPlan, angle: angle, metricValues: metricValues, SideTracker: SideTracker, RepCounter: RepCounter,
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
     jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, posture3DFeatures: posture3DFeatures, classifyPosture3D: classifyPosture3D, upVector: upVector, metricValues3D: metricValues3D, romFeatures: romFeatures, postureVector: postureVector, classifyWithProfile: classifyWithProfile, romCheck3D: romCheck3D, ROM3D: ROM3D, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
-    SensorCounter: SensorCounter, Rhythm: Rhythm, EDGE: EDGE, sanePosture: sanePosture, e1rm: e1rm, muscleSets: muscleSets, tempoStats: tempoStats, offlineCycles: offlineCycles, SignalBank: SignalBank, signalCandidates: signalCandidates, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
+    SensorCounter: SensorCounter, Rhythm: Rhythm, EDGE: EDGE, sanePosture: sanePosture, e1rm: e1rm, muscleSets: muscleSets, tempoStats: tempoStats, offlineCycles: offlineCycles, SignalBank: SignalBank, classifyMovement: classifyMovement, MoveSig: MoveSig, sigDist: sigDist, matchSig: matchSig, signalCandidates: signalCandidates, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
