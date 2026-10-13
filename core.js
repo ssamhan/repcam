@@ -1047,9 +1047,28 @@
       torso: Math.atan2(Math.abs(sh.x - hp.x), hp.y - sh.y) * 180 / Math.PI };
   }
   function MoveSig() { this.rows = []; this.lastT = -1e9; }
+  // puntos del dibujo: nariz, hombros, codos, muñecas, caderas, rodillas, tobillos
+  const ANIM_J = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
   MoveSig.prototype.push = function (t, lm) {
     if (!lm || t - this.lastT < 80) return; this.lastT = t;
-    this.rows.push({ t: t, f: sigFrame(lm) }); while (this.rows.length && t - this.rows[0].t > 120000) this.rows.shift();
+    const pts = ANIM_J.map(function (i) { const p = lm[i]; return p && (p.visibility ?? 1) >= 0.5 ? [p.x, p.y] : null; });
+    this.rows.push({ t: t, f: sigFrame(lm), p: pts }); while (this.rows.length && t - this.rows[0].t > 120000) this.rows.shift();
+  };
+  // una repetición típica (la del medio de la serie) en 10 cuadros, centrada en la cadera y escalada por el tronco
+  MoveSig.prototype.anim = function (repTs) {
+    if (!repTs || repTs.length < 3) return null;
+    const m = Math.floor((repTs.length - 1) / 2), t0 = repTs[m - 1 >= 0 ? m - 1 : 0], t1 = repTs[m];
+    const rows = this.rows.filter(function (r) { return r.t >= t0 && r.t <= t1; }); if (rows.length < 6) return null;
+    const mid = function (a, b) { return a && b ? [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] : a || b; };
+    let cx = 0, cy = 0, n = 0; const Ts = [];
+    rows.forEach(function (r) { const h = mid(r.p[7], r.p[8]), sh = mid(r.p[1], r.p[2]); if (h) { cx += h[0]; cy += h[1]; n++; } if (h && sh) Ts.push(Math.hypot(h[0] - sh[0], h[1] - sh[1])); });
+    if (!n || !Ts.length) return null; cx /= n; cy /= n; Ts.sort(function (a, b) { return a - b; }); const T = Ts[Ts.length >> 1]; if (!(T > 0)) return null;
+    const out = [];
+    for (let k = 0; k < 10; k++) {
+      const r = rows[Math.round(k * (rows.length - 1) / 9)];
+      out.push(r.p.map(function (q) { return q ? [Math.round((q[0] - cx) / T * 100), Math.round((q[1] - cy) / T * 100)] : null; }));
+    }
+    return out;
   };
   MoveSig.prototype.reset = function () { this.rows = []; };
   MoveSig.prototype.signature = function (t0, t1) {
@@ -1368,6 +1387,6 @@
     mondayOf: mondayOf, ymd: ymd, parseYmd: parseYmd, weekNumber: weekNumber, cycleWeek: cycleWeek, isDeload: isDeload,
     dayKeyOf: dayKeyOf, plannedSets: plannedSets, recommend: recommend, sessionsFor: sessionsFor, fmtKg: fmtKg,
     jointsFor: jointsFor, detectionQuality: detectionQuality, classifyPosture: classifyPosture, clipToFrame: clipToFrame, posture3DFeatures: posture3DFeatures, classifyPosture3D: classifyPosture3D, upVector: upVector, metricValues3D: metricValues3D, romFeatures: romFeatures, postureVector: postureVector, classifyWithProfile: classifyWithProfile, romCheck3D: romCheck3D, ROM3D: ROM3D, postureCompatible: postureCompatible, POSTURE_NAME: POSTURE_NAME, POSTURE_SAY: POSTURE_SAY, EXPECTED: EXPECTED, torsoDirection: torsoDirection, PostureTracker: PostureTracker, JOINT_HELP: JOINT_HELP, features: features, GATES: GATES, poseVector: poseVector, poseDistance: poseDistance, blendPose: blendPose,
-    SensorCounter: SensorCounter, Rhythm: Rhythm, EDGE: EDGE, sanePosture: sanePosture, e1rm: e1rm, muscleSets: muscleSets, tempoStats: tempoStats, offlineCycles: offlineCycles, SignalBank: SignalBank, classifyMovement: classifyMovement, MoveSig: MoveSig, sigDist: sigDist, matchSig: matchSig, signalCandidates: signalCandidates, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
+    SensorCounter: SensorCounter, Rhythm: Rhythm, EDGE: EDGE, sanePosture: sanePosture, e1rm: e1rm, muscleSets: muscleSets, tempoStats: tempoStats, offlineCycles: offlineCycles, SignalBank: SignalBank, classifyMovement: classifyMovement, MoveSig: MoveSig, sigDist: sigDist, matchSig: matchSig, ANIM_J: ANIM_J, signalCandidates: signalCandidates, romCheck: romCheck, PLACEMENT: PLACEMENT, PATTERN_PLACE: PATTERN_PLACE, bumpDetector: bumpDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RepCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -40,4 +40,15 @@ window.Cloud = {
   async adminDelete(uid) { await F.deleteDoc(F.doc(db, 'users', uid)); },
   async getConfig() { const s = await F.getDoc(F.doc(db, 'config', 'app')); return s.exists() ? s.data() : { allowSignup: true, invited: [] }; },
   async setConfig(d) { await F.setDoc(F.doc(db, 'config', 'app'), d, { merge: true }); },
+  // base de conocimiento de movimientos: un documento por ejercicio, solo se le agregan muestras
+  async kbList() { const q = await F.getDocs(F.collection(db, 'kb')); return q.docs.map((d) => Object.assign({ key: d.id }, d.data())); },
+  async kbAdd(key, meta, sample) {
+    const ref = F.doc(db, 'kb', key);
+    try { await F.updateDoc(ref, { samples: F.arrayUnion(sample) }); }
+    catch (e) {
+      if (e.code !== 'not-found') throw e;
+      await F.setDoc(ref, { name: meta.name, pattern: meta.pattern || null, createdAt: Date.now(), samples: [sample] });
+    }
+  },
+  async kbRemove(key, sample) { await F.updateDoc(F.doc(db, 'kb', key), { samples: F.arrayRemove(sample) }); },
 };

@@ -195,6 +195,9 @@ input[type="date"], select { font-size: 16px; }
 .pitem button, .pday .x { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer; font-size: 16px; }
 .pitem button:disabled { opacity: .3; }
 .liblist { display: flex; flex-direction: column; gap: 6px; }
+.kbrow { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+.kbrow canvas { width: 96px; height: 112px; background: var(--bg); border-radius: 8px; flex: none; }
+.kbrow small { display: block; color: var(--muted); font-size: 13px; margin: 2px 0 6px; }
 .fphead { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 6px; }
 .librow.new { border-style: dashed; color: var(--accent); font-weight: 700; }
 .facheck { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 15px; }
@@ -332,7 +335,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v29</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v30</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -691,6 +694,16 @@ input[type="date"], select { font-size: 16px; }
     <div class="row"><button class="btn primary" id="nx-save">Guardar ejercicio</button><button class="btn ghost" id="nx-cancel">Cancelar</button></div>
   </div>
 </div>
+<!-- base de conocimiento -->
+<div class="modal" id="kbview" hidden>
+  <div class="box tall" role="dialog" aria-modal="true" aria-labelledby="kb-title">
+    <h3 id="kb-title">Base de conocimiento</h3>
+    <p class="note">Cada serie que haces con la cámara enseña a la app cómo se ve ese ejercicio. Se guarda en el servidor: no se borra aunque borres la app o cambies de teléfono, y sirve para reconocer el entrenamiento libre. El dibujo es una repetición real tuya; la figura verde es la posición de inicio.</p>
+    <p class="note" id="kb-sum"></p>
+    <div class="liblist" id="kb-list"></div>
+    <div class="row"><button class="btn ghost" id="kb-close">Cerrar</button></div>
+  </div>
+</div>
 <!-- entrenamiento libre: sumarlo al plan -->
 <div class="modal" id="freeadd" hidden>
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="fa-title">
@@ -734,9 +747,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js?v=29"></script>
-<script src="core.js?v=29"></script>
-<script src="library.js?v=29"></script>
+<script src="config.js?v=30"></script>
+<script src="core.js?v=30"></script>
+<script src="library.js?v=30"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -801,7 +814,7 @@ function enterUser(id) {
   $('#adminbar').hidden = !viewing; if (viewing) $('#adminbar-name').textContent = curUser().name;
   $('#admincard').hidden = !isAdmin(curUser()); setUsersTab();
   if ($('#admincard') && isAdmin(curUser())) $('#admincount').textContent = CLOUD_ON ? 'servidor' : U.list.length;
-  cloudPush();
+  cloudPush(); kbBackfill(); setTimeout(kbRefresh, 1500); setTimeout(kbFromRecordings, 5000);
 }
 // pestaña "Usuarios": solo para administradores
 function setUsersTab() {
@@ -1108,6 +1121,8 @@ function renderEx() {
     '<div class="row"><button class="btn primary" id="ex-cam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>' + (S.settings.mode === 'sensor' ? 'Usar sensor' : 'Usar cámara') + '</button><button class="btn ghost" id="ex-manual">Registrar a mano</button></div>' +
     (nx ? '<button class="btn ghost small" id="ex-next" style="align-self:flex-start">Siguiente: ' + esc(nx.name) + ' →</button>' : '');
   startDemo($('#democv'), e);
+  const kfr = kbAnimFor(kbKey(e));
+  if (kfr) { const box = document.createElement('div'); box.className = 'kbrow'; box.innerHTML = '<canvas width="120" height="140"></canvas><div><b>Así lo aprendió la app</b><small>Una repetición real grabada con tu cámara (' + KB[kbKey(e)].samples.length + ' muestras en la base).</small></div>'; $('#exbody .demo').after(box); playAnim(box.querySelector('canvas'), kfr); }
   $('#ex-back').onclick = closeEx;
   if ($('#ex-forget')) $('#ex-forget').onclick = () => { delete S.poses[e.id]; delete S.rom[e.id]; save(); renderEx(); toast('La próxima serie aprenderá tu posición de nuevo'); };
   $('#ex-cam').onclick = () => openCam(e, false);
@@ -1225,7 +1240,7 @@ function setupExercise(ex) {
   rirChips($('#cam-rir'), null, () => {}); $('#cam-rir').style.visibility = 'hidden';
   $('#cam-qual').className = 'qual'; $('#cam-qual').textContent = 'Buscando…'; $('#cam-arm').hidden = false;
   $('#cam-skipex').hidden = !cam.guided;
-  cam.sig = new C.MoveSig(); cam.repTs = []; cam.lastSig = null;
+  kbCommitPending(); cam.sig = new C.MoveSig(); cam.repTs = [];
   $('#cam-freeex').hidden = !cam.free; if (cam.free) freeLabel();
   updateHud();
 }
@@ -1247,6 +1262,7 @@ function introSay(ex) {
 async function openCam(ex, guided, queue, opts) {
   opts = opts || {};
   if (!ex.free) cam.free = null;
+  if (Date.now() - (cam.kbAt || 0) > 600000) { cam.kbAt = Date.now(); kbRefresh(); }
   const sensor = S.settings.mode === 'sensor';
   if (!window.isSecureContext) { toast('La app necesita abrirse desde https'); return; }
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
@@ -1372,6 +1388,7 @@ function closeCam() {
   try { wakeLock && wakeLock.release(); } catch (e) {} wakeLock = null;
   if (cam.phase === 'set' && curReps() > 0) endSet(false);
   REC.stop();
+  kbCommitPending();
   const fr = cam.free; cam.free = null; $('#cam-freeex').hidden = true;
   $('#cam').hidden = true; document.body.classList.remove('cam-open'); cam.ex = null; refreshAll();
   if (fr && Object.keys(fr.done).length) openFreeAdd(fr);
@@ -1789,10 +1806,10 @@ function endSet(auto) {
   const logEx = cam.free ? cam.free.ex : cam.ex;
   const l = addLog(logEx, { weight: wv === '' ? null : +wv, reps, rir: null, restS: cam.pendingRest, auto: true, detected: cam.counter.count(), adj: cam.adj, recId: REC.id(), extra });
   // aprende cómo se ve este ejercicio en tu cámara (para reconocerlo en el entrenamiento libre)
-  cam.lastSig = null;
+  kbCommitPending();
   if (S.settings.mode !== 'sensor' && repTs.length >= 4 && cam.sig) {
     const sg = cam.sig.signature(repTs[0] - 2000, repTs[repTs.length - 1] + 500);
-    if (sg) { const key = logEx.lib || logEx.id; learnSig(key, sg); cam.lastSig = { key, sg }; }
+    if (sg) cam.kbPending = { ex: logEx, sg, anim: cam.sig.anim(repTs), src: cam.free ? 'libre' : 'plan', logId: l.id };
   }
   REC.ev('setEnd', { logId: l.id, detected: cam.counter.count(), live, adj: cam.adj, reps, auto, stats: st });
   // sin peso anotado: se pide una vez por ejercicio (sin peso no se puede saber cuándo subir)
@@ -1871,6 +1888,150 @@ function tickRest(now) {
 }
 function restWords(s) { const m = Math.floor(s / 60), r = s % 60; if (!m) return numWord(r) + ' segundos'; return (m === 1 ? 'un minuto' : numWord(m) + ' minutos') + (r === 30 ? ' y medio' : r ? ' y ' + numWord(r) + ' segundos' : ''); }
 function fmtClock(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+// ---------- base de conocimiento de movimientos (compartida, en el servidor) ----------
+// Cada serie terminada aporta una "muestra": su firma de movimiento y una repetición dibujada en 10 cuadros.
+// Se guarda en el servidor (solo se agregan muestras; nadie las borra salvo el dueño) y queda una copia local
+// común a todas las personas del teléfono. Si no hay conexión, las muestras esperan en cola y se suben después.
+const KB_K = 'repcam.kb', KBQ_K = 'repcam.kbq';
+let KB = {}; try { KB = JSON.parse(localStorage.getItem(KB_K)) || {}; } catch (e) { KB = {}; }
+const kbSave = () => { try { localStorage.setItem(KB_K, JSON.stringify(KB)); } catch (e) {} };
+const kbQueue = () => { try { return JSON.parse(localStorage.getItem(KBQ_K)) || []; } catch (e) { return []; } };
+const kbSetQueue = (q) => { try { localStorage.setItem(KBQ_K, JSON.stringify(q)); } catch (e) {} };
+// clave del ejercicio: la de la biblioteca (si el nombre coincide, también para los ejercicios del plan original)
+function kbKey(ex) {
+  if (!ex) return null; if (ex.lib && RepLib.LIB[ex.lib]) return ex.lib;
+  const n = normWord(ex.name), hit = Object.values(RepLib.LIB).find((x) => normWord(x.name) === n);
+  return hit ? hit.lib : 'n_' + n.replace(/ /g, '_').slice(0, 60);
+}
+const encAnim = (a) => (a ? a.map((f) => f.map((q) => (q ? q[0] + ',' + q[1] : '')).join(';')).join('|') : '');
+const decAnim = (s0) => (s0 ? String(s0).split('|').map((f) => f.split(';').map((q) => (q ? q.split(',').map(Number) : null))) : null);
+const kbWho = () => (cloudUser && cloudUser.uid ? cloudUser.uid.slice(0, 8) : 'l' + String(U.cur || '').slice(-6));
+function kbContribute(ex, sg, anim, src) {
+  const key = kbKey(ex); if (!key || !sg) return;
+  const sample = { sig: sg, anim: encAnim(anim), src, at: Date.now(), app: APP_VER, u: kbWho() };
+  const meta = { name: ex.name, pattern: ex.pattern || null };
+  const k = KB[key] || (KB[key] = { name: meta.name, pattern: meta.pattern, samples: [] }); k.samples.push(sample); kbSave();
+  const q = kbQueue(); q.push({ key, meta, sample }); kbSetQueue(q); kbFlush();
+}
+let kbBusy = false;
+async function kbFlush() {
+  if (kbBusy || !CLOUD_ON || !cloudUser || !window.Cloud || !Cloud.kbAdd) return; kbBusy = true;
+  try {
+    let q = kbQueue();
+    while (q.length) {
+      try { await Cloud.kbAdd(q[0].key, q[0].meta, q[0].sample); q.shift(); kbSetQueue(q); }
+      catch (e) { if (e && e.code === 'permission-denied') { q.shift(); kbSetQueue(q); } else break; }   // sin conexión: se reintenta después
+    }
+  } finally { kbBusy = false; }
+}
+async function kbRefresh() {
+  if (!CLOUD_ON || !cloudUser || !window.Cloud || !Cloud.kbList) return;
+  await kbFlush();
+  try {
+    const list = await Cloud.kbList(), nk = {};
+    list.forEach((d) => { nk[d.key] = { name: d.name, pattern: d.pattern, samples: d.samples || [] }; });
+    // lo que aún está en cola se mantiene
+    kbQueue().forEach((it) => { const k = nk[it.key] || (nk[it.key] = { name: it.meta.name, pattern: it.meta.pattern, samples: [] }); if (!k.samples.some((x) => x.at === it.sample.at && x.u === it.sample.u)) k.samples.push(it.sample); });
+    KB = nk; kbSave(); if (!$('#kbview').hidden) renderKB();
+  } catch (e) {}
+}
+// firmas para comparar: la base compartida + lo aprendido antes en este teléfono (v26–v29)
+function matchStore() {
+  const st = {};
+  for (const k in KB) st[k] = (KB[k].samples || []).map((x) => x.sig).filter(Boolean);
+  for (const k in S.sigs || {}) { const ex = RepLib.LIB[k] ? RepLib.LIB[k] : exById(k); const kk = ex ? kbKey(ex) : k; st[kk] = (st[kk] || []).concat(S.sigs[k]); }
+  return st;
+}
+// de una clave de la base a un ejercicio tuyo (de tu plan, de la biblioteca o creado por ti)
+function keyToRef(key, day) {
+  if (RepLib.LIB[key]) return refFor(key, day);
+  const name = KB[key] && KB[key].name; if (!name) return exById(key) ? key : null;
+  const n = normWord(name), pe = C.PLAN.find((e) => normWord(e.name) === n && e.day === day) || C.PLAN.find((e) => normWord(e.name) === n);
+  if (pe) return pe.id;
+  const lx = Object.values(RepLib.LIB).find((x) => normWord(x.name) === n); return lx ? refFor(lx.lib, day) : null;
+}
+// la muestra de la serie recién guardada espera un poco: si corriges el ejercicio, se sube ya corregida
+function kbCommitPending() { const p = cam.kbPending; cam.kbPending = null; if (p) kbContribute(p.ex, p.sg, p.anim, p.src); }
+// una vez: sube lo que este teléfono aprendió antes de tener la base en el servidor
+function kbBackfill() {
+  if (S.kbBackfilled) return; S.kbBackfilled = true;
+  for (const k in S.sigs || {}) { const ex = RepLib.LIB[k] ? RepLib.LIB[k] : exById(k); if (ex) (S.sigs[k] || []).forEach((sg) => kbContribute(ex, sg, null, 'v26')); }
+  save();
+}
+
+// también aprende de las grabaciones que ya tienes en este teléfono (una vez por grabación)
+async function kbFromRecordings() {
+  if (kbFromRecordings.busy || !REC.list) return; kbFromRecordings.busy = true;
+  try {
+    const done = new Set(S.kbRecDone || []), list = await REC.list(); let n = 0;
+    for (const s0 of list) {
+      if (!s0 || done.has(s0.id) || !s0.frames || !s0.frames.length) continue;
+      const [W, H] = s0.video || [1, 1], J = s0.joints || [], ms = new C.MoveSig();
+      s0.frames.forEach((row) => { if (row.length <= 3) return; const lm = []; for (let k = 0; k < 33; k++) lm.push(null); J.forEach((j, k) => { lm[j] = { x: row[3 + k * 3] / 1000 * W, y: row[4 + k * 3] / 1000 * H, visibility: row[5 + k * 3] / 100 }; }); ms.lastT = -1e9; ms.push(row[0], lm); });
+      ms.rows.sort((a, b) => a.t - b.t);
+      let prev = -1;
+      for (const e of (s0.events || []).filter((x) => x[1] === 'setEnd')) {
+        const reps = s0.events.filter((x) => x[1] === 'rep' && x[0] > prev && x[0] <= e[0]).map((x) => x[0]); prev = e[0];
+        if (reps.length < 4) continue;
+        const lg = e[2] && S.logs.find((l) => l.id === e[2].logId), ex = (lg && exById(lg.exId)) || exById(s0.exId) || (s0.exName && { name: s0.exName, pattern: s0.pattern });
+        if (!ex || ex.free) continue;
+        const sg = ms.signature(reps[0] - 2000, reps[reps.length - 1] + 500); if (!sg) continue;
+        kbContribute(ex, sg, ms.anim(reps), 'grabación'); n++;
+      }
+      done.add(s0.id); S.kbRecDone = [...done]; save();
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    if (n) { toast('Base de conocimiento: ' + n + ' series aprendidas de tus grabaciones'); if (!$('#kbview').hidden) renderKB(); }
+  } catch (e) {} finally { kbFromRecordings.busy = false; }
+}
+
+// ---------- dibujo de una repetición aprendida ----------
+const ANIM_BONES = [[1, 2], [1, 3], [3, 5], [2, 4], [4, 6], [1, 7], [2, 8], [7, 8], [7, 9], [9, 11], [8, 10], [10, 12]];
+const animCanvases = new Set(); let animRaf = null;
+function drawAnimFrame(cv, frames, t) {
+  const ctx = cv.getContext('2d'), W = cv.width, H = cv.height; ctx.clearRect(0, 0, W, H);
+  const n = frames.length, x = (Math.sin(t / 900) + 1) / 2 * (n - 1), i = Math.floor(x), f = x - i, A = frames[i], B = frames[Math.min(n - 1, i + 1)];
+  let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+  frames.forEach((fr) => fr.forEach((q) => { if (q) { mnx = Math.min(mnx, q[0]); mxx = Math.max(mxx, q[0]); mny = Math.min(mny, q[1]); mxy = Math.max(mxy, q[1]); } }));
+  const sc = Math.min((W - 16) / Math.max(1, mxx - mnx), (H - 16) / Math.max(1, mxy - mny)), ox = (W - (mxx - mnx) * sc) / 2 - mnx * sc, oy = (H - (mxy - mny) * sc) / 2 - mny * sc;
+  const P = (k) => { const a = A[k], b = B[k]; const q = a && b ? [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f] : a || b; return q ? [ox + q[0] * sc, oy + q[1] * sc] : null; };
+  // fantasma: el primer cuadro (posición de inicio)
+  ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(34,160,90,.35)'; ctx.lineWidth = 4;
+  ANIM_BONES.forEach(([a, b]) => { const p = frames[0][a], q = frames[0][b]; if (p && q) { ctx.beginPath(); ctx.moveTo(ox + p[0] * sc, oy + p[1] * sc); ctx.lineTo(ox + q[0] * sc, oy + q[1] * sc); ctx.stroke(); } });
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--accent') || '#e8590c'; ctx.lineWidth = 4;
+  ANIM_BONES.forEach(([a, b]) => { const p = P(a), q = P(b); if (p && q) { ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); } });
+  const hd = P(0); if (hd) { ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(hd[0], hd[1], 6, 0, 7); ctx.fill(); }
+}
+function animLoop(t) {
+  animRaf = null; let any = false;
+  animCanvases.forEach((cv) => { if (!cv.isConnected) { animCanvases.delete(cv); return; } any = true; drawAnimFrame(cv, cv.__frames, t); });
+  if (any) animRaf = requestAnimationFrame(animLoop);
+}
+function playAnim(cv, frames) { if (!cv || !frames || frames.length < 2) return false; cv.__frames = frames; animCanvases.add(cv); if (!animRaf) animRaf = requestAnimationFrame(animLoop); return true; }
+// la mejor muestra con dibujo de un ejercicio: la más reciente (prefiere las tuyas)
+function kbAnimFor(key) { const k = KB[key]; if (!k) return null; const ss = k.samples.filter((x) => x.anim); if (!ss.length) return null; const mine = ss.filter((x) => x.u === kbWho()); return decAnim((mine.length ? mine : ss)[(mine.length ? mine : ss).length - 1].anim); }
+function renderKB() {
+  const keys = Object.keys(KB).filter((k) => (KB[k].samples || []).length).sort((a, b) => KB[a].name.localeCompare(KB[b].name, 'es'));
+  const own = isOwnerUser();
+  $('#kb-sum').textContent = keys.length ? keys.length + ' ejercicios aprendidos · ' + keys.reduce((a, k) => a + KB[k].samples.length, 0) + ' muestras' + (kbQueue().length ? ' · ' + kbQueue().length + ' por subir' : '') : 'Aún no hay ejercicios aprendidos: cada serie que hagas con la cámara enseña uno.';
+  $('#kb-list').innerHTML = keys.map((k) => {
+    const x = KB[k], people = new Set(x.samples.map((q) => q.u)).size, fixed = x.samples.filter((q) => q.src === 'corregido').length;
+    return '<div class="kbrow"><canvas width="120" height="140" data-kb="' + esc(k) + '"></canvas><div><b>' + esc(x.name) + '</b><small>' + x.samples.length + (x.samples.length === 1 ? ' muestra' : ' muestras') + ' · ' + people + (people === 1 ? ' persona' : ' personas') + (fixed ? ' · ' + fixed + (fixed === 1 ? ' corregida' : ' corregidas') : '') + (x.pattern && PATTERNS[x.pattern] ? '<br>' + PATTERNS[x.pattern][0] : '') + '</small>' +
+      (own ? '<button class="btn ghost small" data-kbdel="' + esc(k) + '">Quitar última muestra</button>' : '') + '</div></div>';
+  }).join('');
+  $('#kb-list').querySelectorAll('canvas[data-kb]').forEach((cv) => { const fr = kbAnimFor(cv.dataset.kb); if (!playAnim(cv, fr)) { const c = cv.getContext('2d'); c.fillStyle = '#888'; c.font = '12px sans-serif'; c.fillText('sin dibujo', 30, 72); } });
+}
+const isOwnerUser = () => !!(cloudUser && CFG && CFG.ownerEmail && cloudUser.email === String(CFG.ownerEmail).toLowerCase() && cloudUser.verified);
+function openKB() { renderKB(); $('#kbview').hidden = false; kbRefresh(); }
+document.addEventListener('click', async (ev) => {
+  if (ev.target.closest('#kb-close')) { $('#kbview').hidden = true; return; }
+  if (ev.target.closest('#pl-kb')) { openKB(); return; }
+  const d = ev.target.closest('[data-kbdel]'); if (!d) return;
+  const k = d.dataset.kbdel, x = KB[k]; if (!x || !x.samples.length) return; const last = x.samples[x.samples.length - 1];
+  if (!confirm('¿Quitar la última muestra de ' + x.name + ' del servidor?')) return;
+  try { await Cloud.kbRemove(k, last); x.samples.pop(); kbSave(); renderKB(); toast('Muestra quitada'); } catch (e) { toast('No se pudo: ' + Cloud.msg(e)); }
+});
+
 // ---------- entrenamiento libre ----------
 // La cámara mira todo el cuerpo, cuenta cualquier movimiento repetido y adivina el ejercicio:
 // 1) comparándolo con tus series anteriores (aprende cómo se ve cada ejercicio tuyo en tu cámara)
@@ -1881,14 +2042,13 @@ function openFree() {
   cam.free = { day: selDay, ref: null, ex: null, user: false, done: {}, told: {}, opts: [] };
   openCam(freeExOf(selDay), false, null);
 }
-function learnSig(key, sg) { S.sigs = S.sigs || {}; const a = S.sigs[key] || (S.sigs[key] = []); a.push(sg); if (a.length > 6) a.shift(); save(); }
 const refEx = (ref, day) => (String(ref).startsWith('lib:') ? RepLib.resolve({ lib: ref.slice(4) }, day) : exById(ref));
 // referencia de un ejercicio: si está en tu plan ese día, el del plan (así las series quedan juntas)
 function refFor(lib, day) { const pe = C.PLAN.find((e) => e.lib === lib && e.day === day) || C.PLAN.find((e) => e.lib === lib); return pe ? pe.id : 'lib:' + lib; }
 function freeOptions(sig) {
   const F = cam.free, day = F.day, eq = S.profile.equip || [], out = [], seen = new Set();
   const add = (ref, why, d) => { const e = ref && refEx(ref, day); if (!e || seen.has(e.name)) return; seen.add(e.name); out.push({ ref, name: e.name, why, d }); };
-  if (sig) C.matchSig(sig, S.sigs || {}).forEach((m) => { if (m.d < 1.0) add(RepLib.LIB[m.key] ? refFor(m.key, day) : m.key, 'tuyo', m.d); });
+  if (sig) C.matchSig(sig, matchStore()).forEach((m) => { if (m.d < 1.0) add(keyToRef(m.key, day), 'tuyo', m.d); });
   const prof = cam.counter && cam.counter.movementProfile ? cam.counter.movementProfile() : null;
   (prof ? C.classifyMovement(prof) : []).slice(0, 3).forEach((p, i) => {
     const plan = C.PLAN.filter((e) => e.pattern === p.pattern).sort((a, b) => (b.day === day) - (a.day === day));
@@ -1970,7 +2130,7 @@ function pickFree(ref) {
     const prevRef = Object.keys(F.done).find((r) => { const e = refEx(r, F.day); return e && e.id === l.exId; });
     l.exId = F.ex.id; l.exName = F.ex.name; l.day = F.ex.day; l.set = logsToday(F.ex.id).filter((x) => x !== l).length + 1;
     if (prevRef && F.done[prevRef]) { F.done[prevRef]--; if (!F.done[prevRef]) delete F.done[prevRef]; } F.done[ref] = (F.done[ref] || 0) + 1;
-    if (cam.lastSig) { const a = (S.sigs || {})[cam.lastSig.key] || []; const i = a.indexOf(cam.lastSig.sg); if (i >= 0) a.splice(i, 1); const key = F.ex.lib || F.ex.id; learnSig(key, cam.lastSig.sg); cam.lastSig.key = key; }
+    if (cam.kbPending && cam.kbPending.logId === l.id) { cam.kbPending.ex = F.ex; cam.kbPending.src = 'corregido'; }
     save(); toast('Serie corregida: ' + F.ex.name);
   } else if (prevEx !== F.ex) toast('Ejercicio: ' + F.ex.name);
   say(F.ex.name + '. Lo recordaré.', true);
@@ -2359,7 +2519,7 @@ function setClMode(m) {
 }
 async function startCloud() {
   showCloudLogin('Conectando con el servidor…', true);
-  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=29'); Cloud.init(CFG.firebase); }
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=30'); Cloud.init(CFG.firebase); }
   catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
   Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
 }
@@ -2468,6 +2628,7 @@ function cloudPush() {
 }
 async function cloudRefresh() {
   if (!CLOUD_ON || !cloudUser || !window.Cloud) return;
+  kbFlush();
   try {
     const d = await Cloud.getUser(cloudUser.uid); if (!d) return; cloudDoc = d;
     if (d.active === false) { toast('Tu cuenta fue desactivada'); cloudSignOut(); return; }
@@ -2631,7 +2792,8 @@ function renderPlan() {
   const free = DAY_ORDER.split('').filter((k) => !planDay(k));
   const eqn = (S.profile.equip || []).map((k) => RepLib.EQUIP[k]).filter(Boolean);
   let h = '<div class="card"><h3>' + esc(P.name) + '</h3><p class="note">' + P.days.length + ' días de entrenamiento y ' + (7 - P.days.length) + ' de descanso · ' + C.PLAN.length + ' ejercicios. Tu equipo: ' + esc(eqn.join(', ') || 'sin marcar') + '.</p>' +
-    '<div class="row"><button class="btn primary small" id="pl-tpl">Elegir otro plan</button><button class="btn ghost small" id="pl-eq">Mi equipo</button></div></div>';
+    '<div class="row"><button class="btn primary small" id="pl-tpl">Elegir otro plan</button><button class="btn ghost small" id="pl-eq">Mi equipo</button></div></div>' +
+    '<div class="card"><h3>Base de conocimiento</h3><p class="note">' + Object.keys(KB).length + ' ejercicios aprendidos con tus series. Se guarda en el servidor y mejora el reconocimiento.</p><button class="btn ghost small" id="pl-kb">Ver ejercicios aprendidos</button></div>';
   h += DAY_ORDER.split('').map((k) => {
     const d = planDay(k);
     if (!d) return '<div class="card pday restd"><h3><span>' + RepLib.DAY_NAMES[k] + '</span><em>Descanso</em></h3><button class="btn ghost small" data-mkday="' + k + '">+ Convertir en día de entrenamiento</button></div>';
@@ -3122,7 +3284,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 29;
+const APP_VER = 30;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {

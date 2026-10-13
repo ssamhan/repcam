@@ -1,6 +1,6 @@
 // RepCam service worker: funciona sin conexión una vez cargada.
-const V = 'repcam-v29';
-const SHELL = ['./', 'index.html', 'config.js?v=29', 'core.js?v=29', 'library.js?v=29', 'cloud.js?v=29', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const V = 'repcam-v30';
+const SHELL = ['./', 'index.html', 'config.js?v=30', 'core.js?v=30', 'library.js?v=30', 'cloud.js?v=30', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
