@@ -332,7 +332,7 @@ input[type="date"], select { font-size: 16px; }
 <div class="adminbar" id="adminbar" hidden>Administrador · viendo a <b id="adminbar-name"></b><button id="adminbar-back">Volver a mi cuenta</button></div>
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v28</small></div>
+    <div class="brand"><i></i>RepCam <small class="ver num" id="appver">v29</small></div>
     <div class="topright"><div class="weekchip" id="weekchip"></div><button class="userchip" id="userchip" aria-label="Cambiar de persona">?</button></div>
   </header>
 
@@ -734,9 +734,9 @@ input[type="date"], select { font-size: 16px; }
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="config.js?v=28"></script>
-<script src="core.js?v=28"></script>
-<script src="library.js?v=28"></script>
+<script src="config.js?v=29"></script>
+<script src="core.js?v=29"></script>
+<script src="library.js?v=29"></script>
 <script>
 'use strict';
 const C = window.RepCore;
@@ -1569,7 +1569,7 @@ function loop() {
     if (cam.sig && lmPx) cam.sig.push(now, lmPx);
 
     handleGate(out, now);
-    gestureTick(now, lmPx);
+    gestureTick(now, lmPx, wl);
     REC.frame(now, raw, q, out.state, wl, lastMotion);
     if (out.rep) onRep(now, out);
     const pr = cam.counter.progress(); $('#rom').style.height = pr == null || out.state !== 'armed' ? '0%' : Math.round(Math.max(0, Math.min(1, pr)) * 100) + '%';
@@ -1637,7 +1637,7 @@ function gateMsg(out) {
     return cam.counter.paused ? 'Descansando · cuenta al final del descanso' : 'Quédate quieto en la posición de inicio';
   }
   if (rhythmMode()) return 'Ponte frente a la cámara: no te veo completo';
-  if (out.reason === 'voice') return gestureMode() ? 'Levanta una mano sobre la cabeza para empezar' : S.settings.startMode === 'voice' && SpeechRec ? 'Di "' + startWords()[0] + '" o levanta una mano para empezar' : 'Toca "Estoy en posición" o levanta una mano para empezar';
+  if (out.reason === 'voice') return gestureMode() ? 'Estira una mano más allá de la cabeza para empezar' : S.settings.startMode === 'voice' && SpeechRec ? 'Di "' + startWords()[0] + '" o levanta una mano para empezar' : 'Toca "Estoy en posición" o levanta una mano para empezar';
   if (out.reason === 'camera') return 'Ajusta la cámara: no veo ' + C.JOINT_HELP[cam.ex.metric];
   if (out.reason === 'wrongPosture') {
     const P = cam.counter.postureNow, E = C.EXPECTED[cam.ex.id] || [];
@@ -2060,29 +2060,40 @@ $('#btn-free').onclick = openFree;
 const gestureMode = () => S.settings.startMode === 'gesture' && S.settings.mode !== 'sensor';
 const gestureOn = () => ['gesture', 'voice', 'button'].includes(S.settings.startMode) && S.settings.mode !== 'sensor';
 function startHow(suffix) {
-  if (gestureMode()) return ' Para empezar' + suffix + ', levanta una mano sobre la cabeza un segundo; para terminar, repite el gesto.';
+  if (gestureMode()) return ' Para empezar' + suffix + ', estira una mano más allá de la cabeza un segundo, de pie o acostado; para terminar, repite el gesto.';
   if (voiceMode()) return ' Di tu palabra para empezar' + suffix + ', o levanta una mano sobre la cabeza.';
   if (rhythmMode()) return ' Empieza cuando quieras.';
   return ' Ponte en posición de inicio.';
 }
-function handRaised(lm) {
-  if (!lm) return false;
-  const v = (i) => lm[i] && (lm[i].visibility ?? 1) >= 0.5;
-  if (!v(11) || !v(12) || !v(23) || !v(24)) return false;
-  const shY = (lm[11].y + lm[12].y) / 2, T = Math.abs((lm[23].y + lm[24].y) / 2 - shY); if (T < 10) return false;
-  const top = shY - 0.9 * T;   // claramente sobre la cabeza
-  const up = (w, e) => v(w) && v(e) && lm[w].y < top && lm[w].y < lm[e].y;
-  const down = (w) => !v(w) || lm[w].y > shY + 0.15 * T;
-  return (up(15, 13) && down(16)) || (up(16, 14) && down(15));
+// relativo al cuerpo (no a la imagen): sirve de pie, sentado, acostado, de lado o de espaldas.
+// "Arriba" = en la dirección cadera→hombros, más allá de la cabeza. Usa el esqueleto 3D si está; si no, la imagen.
+function handRaised(lm, wl) {
+  const v = (i) => lm && lm[i] && (lm[i].visibility ?? 1) >= 0.3;
+  const test = (P, minT) => {
+    if (!P[11] || !P[12] || !P[23] || !P[24] || !P[15] || !P[16]) return false;
+    const D = P[11].z != null && P[23].z != null && P[15].z != null;
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: D ? (a.z + b.z) / 2 : 0 });
+    const sh = mid(P[11], P[12]), hp = mid(P[23], P[24]);
+    const ux = sh.x - hp.x, uy = sh.y - hp.y, uz = sh.z - hp.z, T = Math.hypot(ux, uy, uz); if (T < minT) return false;
+    const s = (p) => ((p.x - sh.x) * ux + (p.y - sh.y) * uy + (D ? (p.z - sh.z) * uz : 0)) / T;   // cuánto "sobre los hombros" en el eje del cuerpo
+    const a = s(P[15]), b = s(P[16]), hi = Math.max(a, b), lo = Math.min(a, b), hiIdx = a > b ? 15 : 16;
+    const el = P[hiIdx === 15 ? 13 : 14], shS = P[hiIdx === 15 ? 11 : 12], wr = P[hiIdx];
+    // brazo estirado: el codo entre el hombro y la muñeca, y la muñeca más allá del codo
+    const d = (p, q) => Math.hypot(p.x - q.x, p.y - q.y, D ? (p.z - q.z) : 0), straight = d(shS, wr) > 0.85 * (d(shS, el) + d(el, wr));
+    return v(hiIdx) && hi > 0.75 * T && lo < hi - 0.8 * T && s(wr) > s(el) + 0.2 * T && straight;   // una mano bien pasada la cabeza, brazo estirado, la otra más abajo
+  };
+  if (wl && wl[11] && wl[23] && v(11) && v(23)) return test(wl, 0.15);
+  if (!lm || !v(11) || !v(12) || !v(23) || !v(24)) return false;
+  return test(lm.map((p) => p && { x: p.x, y: p.y }), 10);
 }
-function gestureTick(now, lm) {
+function gestureTick(now, lm, wl) {
   if (!gestureOn() || !cam.counter || cam.nextEx || cam.phase === 'done' || cam.calib) { cam.gSince = null; return; }
   if (now < (cam.gCool || 0)) return;
-  if (!handRaised(lm)) { if (cam.gSince != null && cam.phase !== 'set') setStatus(null); cam.gSince = null; return; }
+  if (!handRaised(lm, wl)) { if (cam.gSince != null && cam.phase !== 'set') setStatus(null); cam.gSince = null; return; }
   if (cam.gSince == null) cam.gSince = now;
   const held = now - cam.gSince;
-  $('#cam-qual').className = 'qual mid'; $('#cam-qual').textContent = (cam.phase === 'set' ? 'Mano arriba: terminar… ' : 'Mano arriba: empezar… ') + Math.min(100, Math.round(held / 10)) + '%';
-  if (held < 1000) return;
+  $('#cam-qual').className = 'qual mid'; $('#cam-qual').textContent = (cam.phase === 'set' ? 'Mano arriba: terminar… ' : 'Mano arriba: empezar… ') + Math.min(100, Math.round(held / 12)) + '%';
+  if (held < 1200) return;
   cam.gSince = null; cam.gCool = now + 3000; beep(1320, 0.12);
   if (cam.phase === 'set' && curReps() > 0) {
     // las reps que contó al levantar la mano no valen
@@ -2348,7 +2359,7 @@ function setClMode(m) {
 }
 async function startCloud() {
   showCloudLogin('Conectando con el servidor…', true);
-  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=28'); Cloud.init(CFG.firebase); }
+  try { await import(CFG.mock ? './tools/cloud-mock.js' : './cloud.js?v=29'); Cloud.init(CFG.firebase); }
   catch (e) { showCloudLogin('No se pudo conectar con el servidor. Revisa tu internet y vuelve a abrir la app.', true); return; }
   Cloud.onAuth((u) => { cloudUser = u; if (!u) { setClMode('in'); showCloudLogin(''); } else cloudEnter(u); });
 }
@@ -3111,7 +3122,7 @@ $('#cam-clean').onclick = () => tvMode(!$('#cam').classList.contains('clean'));
 document.querySelector('.cam .stage').addEventListener('click', (e) => { if ($('#cam').classList.contains('clean') && !e.target.closest('button')) tvMode(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#cam').classList.contains('clean')) { $('#cam').classList.remove('clean'); $('#cam-clean').setAttribute('aria-pressed', 'false'); } });
 
-const APP_VER = 28;
+const APP_VER = 29;
 $('#btn-update').onclick = async () => {
   toast('Buscando la versión nueva…');
   try {
